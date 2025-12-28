@@ -1,0 +1,79 @@
+// Prisma schema for lead capture and conversation tracking
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// Lead information captured during conversation
+model Lead {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Contact info
+  name      String?
+  email     String?
+  company   String?
+  phone     String?
+  location  String?
+
+  // Lead qualification
+  challenge     String?  // What problem they're trying to solve
+  serviceArea   String?  // GTM, AI Strategy, etc.
+  urgency       String?  // How soon they need help
+  budget        String?  // Budget range if mentioned
+
+  // Meeting scheduling
+  preferredTimes String?  // JSON array of preferred meeting times
+  meetingBooked  Boolean  @default(false)
+  meetingDate    DateTime?
+
+  // Tracking
+  source         String?  // How they found the site
+  conversationId String?  // Link to conversation
+  status         String   @default("new") // new, qualified, contacted, converted
+  notes          String?  // Any additional notes
+
+  // Relations
+  conversations Conversation[]
+}
+
+// Conversation history for context
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Session tracking
+  sessionId String
+
+  // Conversation state
+  agentMode    String   @default("qualifier") // qualifier, educator, scheduler, objection_handler
+  leadCaptured Boolean  @default(false)
+
+  // Relations
+  lead      Lead?    @relation(fields: [leadId], references: [id])
+  leadId    String?
+  messages  Message[]
+}
+
+// Individual messages in a conversation
+model Message {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  role      String   // user or assistant
+  content   String
+
+  // Metadata
+  agentMode String?  // Which agent handled this
+  toolsUsed String?  // JSON array of tools used
+
+  // Relations
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+  conversationId String
+}

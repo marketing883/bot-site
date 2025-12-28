@@ -8,6 +8,21 @@ import {
   getAbout,
   getContactInfo,
 } from "@/lib/knowledge";
+import {
+  getOrCreateConversation,
+  updateConversation,
+  addMessage,
+  saveLeadFromConversation,
+  type Conversation,
+  type Lead,
+} from "@/lib/db";
+import {
+  determineAgentMode,
+  getNextFieldToCollect,
+  isLeadComplete,
+  extractInfoFromMessage,
+  getAgentPromptAdditions,
+} from "@/lib/agents";
 
 // ============================================================================
 // REQUEST HANDLER
@@ -25,7 +40,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json();
-    const { messages } = body;
+    const { messages, sessionId = `session-${Date.now()}` } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "Messages array is required" }), {
@@ -34,21 +49,67 @@ export async function POST(request: Request) {
       });
     }
 
+    // Get or create conversation
+    const conversation = getOrCreateConversation(sessionId);
+
+    // Get the latest user message
+    const latestUserMessage = messages[messages.length - 1];
+    if (latestUserMessage?.role === "user") {
+      // Extract any info from user message
+      const nextField = getNextFieldToCollect(conversation.collectedInfo);
+      const extractedInfo = extractInfoFromMessage(latestUserMessage.content, nextField || undefined);
+
+      // Update collected info
+      const updatedCollectedInfo: Partial<Lead> = {
+        ...conversation.collectedInfo,
+        ...extractedInfo,
+      };
+
+      // Determine agent mode
+      const agentMode = determineAgentMode(
+        { ...conversation, collectedInfo: updatedCollectedInfo },
+        latestUserMessage.content
+      );
+
+      // Update conversation
+      updateConversation(sessionId, {
+        agentMode,
+        collectedInfo: updatedCollectedInfo,
+      });
+
+      // Save message
+      addMessage(sessionId, {
+        role: "user",
+        content: latestUserMessage.content,
+        agentMode,
+      });
+
+      // Check if we should save the lead
+      if (isLeadComplete(updatedCollectedInfo) && !conversation.leadCaptured) {
+        saveLeadFromConversation(sessionId);
+      }
+    }
+
     // Create Anthropic client
-    const anthropic = new Anthropic({
-      apiKey,
-    });
+    const anthropic = new Anthropic({ apiKey });
 
     // Build system prompt with all knowledge embedded
     const basePrompt = buildSystemPrompt();
-
-    // Embed key knowledge directly in the system prompt
     const services = getServices().data;
     const caseStudies = getCaseStudies().data;
     const speakingTopics = getSpeakingTopics().data;
     const credentials = getCredentials().data;
     const about = getAbout().data;
     const contact = getContactInfo().data;
+
+    // Get updated conversation state
+    const updatedConversation = getOrCreateConversation(sessionId);
+    const nextField = getNextFieldToCollect(updatedConversation.collectedInfo);
+    const agentAdditions = getAgentPromptAdditions(
+      updatedConversation.agentMode,
+      updatedConversation,
+      nextField
+    );
 
     const systemPrompt = `${basePrompt}
 
@@ -72,22 +133,16 @@ ${JSON.stringify(about, null, 2)}
 ### Contact Information
 ${JSON.stringify(contact, null, 2)}
 
-## INSTRUCTIONS
+## RESPONSE STYLE
 1. Keep responses SHORT - 2-3 sentences max unless asked for details.
 2. Be conversational and warm, like texting a helpful friend.
 3. Ask ONE follow-up question to understand their specific need.
 4. Don't list services or bullet points unless specifically asked.
 5. Don't explain your approach or methodology unprompted.
-6. Only mention booking a call after understanding their challenge.
-7. Never start with "It's great that..." or similar filler phrases.
+6. Never start with "It's great that..." or similar filler phrases.
+7. Never provide email templates - if they need manual scheduling, just collect their preferred times.
 
-EXAMPLE GOOD RESPONSE:
-User: "Help us improve our GTM"
-Assistant: "Happy to help! What's the biggest GTM challenge you're facing right now - is it positioning, lead gen, or something else?"
-
-EXAMPLE BAD RESPONSE (too long):
-User: "Help us improve our GTM"
-Assistant: "It's great that you're looking to optimize... [long explanation of services and methodology]"`;
+${agentAdditions}`;
 
     // Convert messages to Anthropic format
     const anthropicMessages = messages.map((m: { role: string; content: string }) => ({
@@ -95,14 +150,16 @@ Assistant: "It's great that you're looking to optimize... [long explanation of s
       content: m.content,
     }));
 
-    // Create streaming response using official SDK
-    // Using claude-3-haiku for faster responses and wider availability
+    // Create streaming response
     const stream = await anthropic.messages.stream({
       model: "claude-3-haiku-20240307",
-      max_tokens: 256, // Keep responses short
+      max_tokens: 256,
       system: systemPrompt,
       messages: anthropicMessages,
     });
+
+    // Track the response for saving
+    let fullResponse = "";
 
     // Create a ReadableStream from the Anthropic stream
     const readableStream = new ReadableStream({
@@ -111,9 +168,18 @@ Assistant: "It's great that you're looking to optimize... [long explanation of s
         try {
           for await (const event of stream) {
             if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+              fullResponse += event.delta.text;
               controller.enqueue(encoder.encode(event.delta.text));
             }
           }
+
+          // Save assistant message after streaming completes
+          addMessage(sessionId, {
+            role: "assistant",
+            content: fullResponse,
+            agentMode: updatedConversation.agentMode,
+          });
+
           controller.close();
         } catch (err) {
           console.error("Stream error:", err);
@@ -127,6 +193,7 @@ Assistant: "It's great that you're looking to optimize... [long explanation of s
     return new Response(readableStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
+        "X-Session-Id": sessionId,
       },
     });
   } catch (error) {

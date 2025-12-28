@@ -9,6 +9,11 @@ import { DynamicCanvas } from "@/components/DynamicCanvas";
 import { CanvasType, ExtractedContext, Message } from "@/lib/types";
 import { quickPrompts, proofPoints } from "@/lib/data";
 
+// Generate a unique session ID
+function generateSessionId(): string {
+  return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
 export default function Home() {
   const [currentCanvas, setCurrentCanvas] = useState<CanvasType>("initial");
   const [context, setContext] = useState<ExtractedContext>({});
@@ -16,6 +21,19 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Session ID - persists across the conversation
+  const [sessionId] = useState(() => {
+    // Check if we have a session in localStorage
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("chat-session-id");
+      if (stored) return stored;
+      const newId = generateSessionId();
+      localStorage.setItem("chat-session-id", newId);
+      return newId;
+    }
+    return generateSessionId();
+  });
 
   const hasConversation = messages.length > 0;
 
@@ -44,6 +62,7 @@ export default function Home() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            sessionId,
             messages: [...messages, userMessage].map((m) => ({
               role: m.role,
               content: m.content,
