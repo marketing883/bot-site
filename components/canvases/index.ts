@@ -4,3 +4,4 @@ export { SpeakingCanvas } from "./SpeakingCanvas";
 export { GTMCanvas } from "./GTMCanvas";
 export { MarketExpansionCanvas } from "./MarketExpansionCanvas";
 export { CaseStudyCanvas } from "./CaseStudyCanvas";
+export { DynamicInsightCanvas } from "./DynamicInsightCanvas";

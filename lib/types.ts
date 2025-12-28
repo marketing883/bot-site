@@ -4,7 +4,8 @@ export type CanvasType =
   | "speaking"
   | "gtm"
   | "market-expansion"
-  | "case-study";
+  | "case-study"
+  | "dynamic";
 
 export type Intent =
   | "ai-strategy"

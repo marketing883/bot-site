@@ -9,6 +9,7 @@ import {
   GTMCanvas,
   MarketExpansionCanvas,
   CaseStudyCanvas,
+  DynamicInsightCanvas,
 } from "./canvases";
 import type { VisualState, VisualMood } from "@/lib/visualState";
 
@@ -151,6 +152,18 @@ export function DynamicCanvas({
             onNextCase={onCaseStudyClick}
           />
         );
+      case "dynamic":
+        if (visualState?.dynamicContent) {
+          return (
+            <DynamicInsightCanvas
+              content={visualState.dynamicContent}
+              onServiceClick={onServiceClick}
+              onCaseStudyClick={onCaseStudyClick}
+              onBookCall={onBookCall}
+            />
+          );
+        }
+        return <InitialCanvas onServiceClick={onServiceClick} />;
       default:
         return <InitialCanvas onServiceClick={onServiceClick} />;
     }

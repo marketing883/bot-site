@@ -27,6 +27,7 @@ const canvasModeToType: Record<CanvasMode, CanvasType> = {
   "scheduling": "initial",
   "assessment": "initial",
   "estimator": "initial",
+  "dynamic": "dynamic",
 };
 
 export default function Home() {
