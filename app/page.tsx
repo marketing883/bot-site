@@ -1,85 +1,102 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+import { useChat } from "ai/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Linkedin, Mail, Calendar, Sparkles } from "lucide-react";
 import { ConversationInput } from "@/components/ConversationInput";
 import { MessageList } from "@/components/MessageList";
 import { DynamicCanvas } from "@/components/DynamicCanvas";
-import { Message, CanvasType, ExtractedContext, ApiResponse } from "@/lib/types";
+import { CanvasType, ExtractedContext, Message } from "@/lib/types";
 import { quickPrompts, proofPoints } from "@/lib/data";
-import { generateId, cn } from "@/lib/utils";
+import { useVisitorMemory } from "@/hooks/useVisitorMemory";
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [currentCanvas, setCurrentCanvas] = useState<CanvasType>("initial");
   const [context, setContext] = useState<ExtractedContext>({});
-  const [isLoading, setIsLoading] = useState(false);
+
+  const {
+    updateContext,
+    updateCanvasAndIntent,
+    recordCaseStudyView,
+    recordServiceView,
+    getConversationSummary,
+  } = useVisitorMemory();
+
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    setMessages,
+    append,
+  } = useChat({
+    api: "/api/chat",
+    body: {
+      sessionContext: getConversationSummary(),
+    },
+    onFinish: (message) => {
+      // Parse tool calls from message if present
+      // Tool results would be embedded in the message annotations
+    },
+  });
 
   const hasConversation = messages.length > 0;
 
-  const handleMessage = useCallback(async (message: string) => {
-    setIsLoading(true);
+  // Convert AI SDK messages to our format for MessageList
+  const formattedMessages: Message[] = messages.map((m) => ({
+    id: m.id,
+    role: m.role as "user" | "assistant",
+    content: m.content,
+    timestamp: m.createdAt || new Date(),
+  }));
 
-    const userMessage: Message = {
-      id: generateId(),
-      role: "user",
-      content: message,
-      timestamp: new Date(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-
-    try {
-      const response = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message }),
+  const handleMessageSubmit = useCallback(
+    async (message: string) => {
+      await append({
+        role: "user",
+        content: message,
       });
+    },
+    [append]
+  );
 
-      if (!response.ok) throw new Error("Failed to get response");
+  const handleServiceClick = useCallback(
+    (serviceId: string) => {
+      recordServiceView(serviceId);
 
-      const data: ApiResponse = await response.json();
-
-      const assistantMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: data.message,
-        timestamp: new Date(),
+      // Set the canvas based on service
+      const serviceToCanvas: Record<string, CanvasType> = {
+        "ai-strategy": "ai-strategy",
+        gtm: "gtm",
+        "market-expansion": "market-expansion",
+        speaking: "speaking",
       };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setCurrentCanvas(data.canvas);
-      setContext(data.context);
-    } catch (error) {
-      console.error("Error:", error);
-      const errorMessage: Message = {
-        id: generateId(),
-        role: "assistant",
-        content: "I apologize, but I encountered an error. Please try again.",
-        timestamp: new Date(),
+      setCurrentCanvas(serviceToCanvas[serviceId] || "initial");
+
+      const serviceMessages: Record<string, string> = {
+        "ai-strategy": "I need help with AI strategy",
+        gtm: "I want to improve my go-to-market",
+        "market-expansion": "I'm looking to expand to new markets",
+        speaking: "I'm looking for a speaker on AI",
       };
-      setMessages((prev) => [...prev, errorMessage]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+      handleMessageSubmit(serviceMessages[serviceId] || "Tell me more about your services");
+    },
+    [handleMessageSubmit, recordServiceView]
+  );
 
-  const handleServiceClick = useCallback((serviceId: string) => {
-    const serviceMessages: Record<string, string> = {
-      "ai-strategy": "I need help with AI strategy",
-      gtm: "I want to improve my go-to-market",
-      "market-expansion": "I'm looking to expand to new markets",
-      speaking: "I'm looking for a speaker on AI",
-    };
-    handleMessage(serviceMessages[serviceId] || "Tell me more about your services");
-  }, [handleMessage]);
-
-  const handleCaseStudyClick = useCallback((id: string) => {
-    setContext((prev) => ({ ...prev, caseStudyId: id }));
-    setCurrentCanvas("case-study");
-  }, []);
+  const handleCaseStudyClick = useCallback(
+    (id: string) => {
+      setContext((prev) => ({ ...prev, caseStudyId: id }));
+      setCurrentCanvas("case-study");
+      recordCaseStudyView(id);
+    },
+    [recordCaseStudyView]
+  );
 
   const handleBookCall = useCallback(() => {
-    window.open("https://calendly.com", "_blank");
+    window.open("https://calendly.com/habib-mehmoodi", "_blank");
   }, []);
 
   const handleBack = useCallback(() => {
@@ -95,6 +112,12 @@ export default function Home() {
       setCurrentCanvas("initial");
     }
   }, [context]);
+
+  const handleReset = useCallback(() => {
+    setCurrentCanvas("initial");
+    setMessages([]);
+    setContext({});
+  }, [setMessages]);
 
   return (
     <div className="min-h-screen bg-gradient-animated grid-overlay relative overflow-hidden">
@@ -116,7 +139,7 @@ export default function Home() {
 
             <nav className="hidden md:flex items-center gap-6">
               <button
-                onClick={() => { setCurrentCanvas("initial"); setMessages([]); }}
+                onClick={handleReset}
                 className="text-sm text-white/60 hover:text-cyan-400 transition-colors text-glow-hover"
               >
                 Home
@@ -134,7 +157,7 @@ export default function Home() {
                 Speaking
               </button>
               <a
-                href="https://linkedin.com"
+                href="https://linkedin.com/in/habibmehmoodi"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-2 text-white/60 hover:text-cyan-400 transition-colors"
@@ -210,7 +233,7 @@ export default function Home() {
                 >
                   <div className="glass-chat rounded-2xl p-1">
                     <ConversationInput
-                      onSubmit={handleMessage}
+                      onSubmit={handleMessageSubmit}
                       isLoading={isLoading}
                       quickPrompts={quickPrompts}
                     />
@@ -258,17 +281,20 @@ export default function Home() {
                   <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                     <h3 className="font-medium text-white/80 text-sm">Conversation</h3>
+                    {isLoading && (
+                      <span className="text-xs text-white/40 ml-2">Thinking...</span>
+                    )}
                   </div>
 
                   {/* Messages */}
                   <div className="flex-1 overflow-y-auto px-4 hide-scrollbar">
-                    <MessageList messages={messages} isLoading={isLoading} />
+                    <MessageList messages={formattedMessages} isLoading={isLoading} />
                   </div>
 
                   {/* Input */}
                   <div className="p-4 border-t border-white/5">
                     <ConversationInput
-                      onSubmit={handleMessage}
+                      onSubmit={handleMessageSubmit}
                       isLoading={isLoading}
                       placeholder="Ask a follow-up question..."
                       compact
@@ -291,7 +317,7 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-4">
                 <a
-                  href="https://linkedin.com"
+                  href="https://linkedin.com/in/habibmehmoodi"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 text-white/30 hover:text-cyan-400 transition-colors"
@@ -299,7 +325,7 @@ export default function Home() {
                   <Linkedin className="w-4 h-4" />
                 </a>
                 <a
-                  href="mailto:hello@habib.com"
+                  href="mailto:hello@habibmehmoodi.com"
                   className="p-2 text-white/30 hover:text-cyan-400 transition-colors"
                 >
                   <Mail className="w-4 h-4" />
