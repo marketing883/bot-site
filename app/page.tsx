@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useChat } from "ai/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Linkedin, Mail, Calendar, Sparkles } from "lucide-react";
@@ -9,36 +9,25 @@ import { MessageList } from "@/components/MessageList";
 import { DynamicCanvas } from "@/components/DynamicCanvas";
 import { CanvasType, ExtractedContext, Message } from "@/lib/types";
 import { quickPrompts, proofPoints } from "@/lib/data";
-import { useVisitorMemory } from "@/hooks/useVisitorMemory";
 
 export default function Home() {
   const [currentCanvas, setCurrentCanvas] = useState<CanvasType>("initial");
   const [context, setContext] = useState<ExtractedContext>({});
-
-  const {
-    updateContext,
-    updateCanvasAndIntent,
-    recordCaseStudyView,
-    recordServiceView,
-    getConversationSummary,
-  } = useVisitorMemory();
+  const [error, setError] = useState<string | null>(null);
 
   const {
     messages,
-    input,
-    handleInputChange,
-    handleSubmit,
     isLoading,
     setMessages,
     append,
   } = useChat({
     api: "/api/chat",
-    body: {
-      sessionContext: getConversationSummary(),
+    onError: (err) => {
+      console.error("Chat error:", err);
+      setError(err.message || "An error occurred. Please try again.");
     },
-    onFinish: (message) => {
-      // Parse tool calls from message if present
-      // Tool results would be embedded in the message annotations
+    onFinish: () => {
+      setError(null);
     },
   });
 
@@ -54,18 +43,22 @@ export default function Home() {
 
   const handleMessageSubmit = useCallback(
     async (message: string) => {
-      await append({
-        role: "user",
-        content: message,
-      });
+      try {
+        setError(null);
+        await append({
+          role: "user",
+          content: message,
+        });
+      } catch (err) {
+        console.error("Failed to send message:", err);
+        setError("Failed to send message. Please try again.");
+      }
     },
     [append]
   );
 
   const handleServiceClick = useCallback(
     (serviceId: string) => {
-      recordServiceView(serviceId);
-
       // Set the canvas based on service
       const serviceToCanvas: Record<string, CanvasType> = {
         "ai-strategy": "ai-strategy",
@@ -83,16 +76,15 @@ export default function Home() {
       };
       handleMessageSubmit(serviceMessages[serviceId] || "Tell me more about your services");
     },
-    [handleMessageSubmit, recordServiceView]
+    [handleMessageSubmit]
   );
 
   const handleCaseStudyClick = useCallback(
     (id: string) => {
       setContext((prev) => ({ ...prev, caseStudyId: id }));
       setCurrentCanvas("case-study");
-      recordCaseStudyView(id);
     },
-    [recordCaseStudyView]
+    []
   );
 
   const handleBookCall = useCallback(() => {
@@ -117,6 +109,7 @@ export default function Home() {
     setCurrentCanvas("initial");
     setMessages([]);
     setContext({});
+    setError(null);
   }, [setMessages]);
 
   return (
@@ -224,6 +217,17 @@ export default function Home() {
                   ))}
                 </motion.div>
 
+                {/* Error message */}
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 px-4 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-sm max-w-2xl mx-auto w-full text-center"
+                  >
+                    {error}
+                  </motion.div>
+                )}
+
                 {/* Chat Input - Prominent */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -285,6 +289,13 @@ export default function Home() {
                       <span className="text-xs text-white/40 ml-2">Thinking...</span>
                     )}
                   </div>
+
+                  {/* Error message */}
+                  {error && (
+                    <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-xs">
+                      {error}
+                    </div>
+                  )}
 
                   {/* Messages */}
                   <div className="flex-1 overflow-y-auto px-4 hide-scrollbar">
