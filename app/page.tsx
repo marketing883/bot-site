@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useChat } from "ai/react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Linkedin, Mail, Calendar, Sparkles } from "lucide-react";
 import { ConversationInput } from "@/components/ConversationInput";
@@ -13,53 +12,95 @@ import { quickPrompts, proofPoints } from "@/lib/data";
 export default function Home() {
   const [currentCanvas, setCurrentCanvas] = useState<CanvasType>("initial");
   const [context, setContext] = useState<ExtractedContext>({});
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const {
-    messages,
-    isLoading,
-    setMessages,
-    append,
-  } = useChat({
-    api: "/api/chat",
-    onError: (err) => {
-      console.error("Chat error:", err);
-      setError(err.message || "An error occurred. Please try again.");
-    },
-    onFinish: () => {
-      setError(null);
-    },
-  });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const hasConversation = messages.length > 0;
 
-  // Convert AI SDK messages to our format for MessageList
-  const formattedMessages: Message[] = messages.map((m) => ({
-    id: m.id,
-    role: m.role as "user" | "assistant",
-    content: m.content,
-    timestamp: m.createdAt || new Date(),
-  }));
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   const handleMessageSubmit = useCallback(
-    async (message: string) => {
+    async (content: string) => {
+      if (!content.trim() || isLoading) return;
+
+      const userMessage: Message = {
+        id: `user-${Date.now()}`,
+        role: "user",
+        content: content.trim(),
+        timestamp: new Date(),
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+      setIsLoading(true);
+      setError(null);
+
       try {
-        setError(null);
-        await append({
-          role: "user",
-          content: message,
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messages: [...messages, userMessage].map((m) => ({
+              role: m.role,
+              content: m.content,
+            })),
+          }),
         });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Error: ${response.status}`);
+        }
+
+        // Handle streaming response
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No response body");
+
+        const decoder = new TextDecoder();
+        let assistantContent = "";
+
+        const assistantMessage: Message = {
+          id: `assistant-${Date.now()}`,
+          role: "assistant",
+          content: "",
+          timestamp: new Date(),
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          assistantContent += chunk;
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMessage.id
+                ? { ...m, content: assistantContent }
+                : m
+            )
+          );
+        }
       } catch (err) {
-        console.error("Failed to send message:", err);
-        setError("Failed to send message. Please try again.");
+        console.error("Chat error:", err);
+        setError(err instanceof Error ? err.message : "Failed to send message");
+        // Remove the empty assistant message on error
+        setMessages((prev) => prev.filter((m) => m.content !== ""));
+      } finally {
+        setIsLoading(false);
       }
     },
-    [append]
+    [messages, isLoading]
   );
 
   const handleServiceClick = useCallback(
     (serviceId: string) => {
-      // Set the canvas based on service
       const serviceToCanvas: Record<string, CanvasType> = {
         "ai-strategy": "ai-strategy",
         gtm: "gtm",
@@ -79,13 +120,10 @@ export default function Home() {
     [handleMessageSubmit]
   );
 
-  const handleCaseStudyClick = useCallback(
-    (id: string) => {
-      setContext((prev) => ({ ...prev, caseStudyId: id }));
-      setCurrentCanvas("case-study");
-    },
-    []
-  );
+  const handleCaseStudyClick = useCallback((id: string) => {
+    setContext((prev) => ({ ...prev, caseStudyId: id }));
+    setCurrentCanvas("case-study");
+  }, []);
 
   const handleBookCall = useCallback(() => {
     window.open("https://calendly.com/habib-mehmoodi", "_blank");
@@ -110,7 +148,7 @@ export default function Home() {
     setMessages([]);
     setContext({});
     setError(null);
-  }, [setMessages]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-animated grid-overlay relative overflow-hidden">
@@ -166,7 +204,6 @@ export default function Home() {
       <main className="relative z-10 pt-14 min-h-screen">
         <AnimatePresence mode="wait">
           {!hasConversation ? (
-            /* Initial Hero State - Everything in first viewport */
             <motion.div
               key="hero"
               initial={{ opacity: 0 }}
@@ -175,7 +212,6 @@ export default function Home() {
               transition={{ duration: 0.5 }}
               className="h-[calc(100vh-3.5rem)] flex flex-col"
             >
-              {/* Hero Content */}
               <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-6 lg:px-8 pb-8">
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
@@ -199,7 +235,6 @@ export default function Home() {
                   </p>
                 </motion.div>
 
-                {/* Proof Points */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -217,7 +252,6 @@ export default function Home() {
                   ))}
                 </motion.div>
 
-                {/* Error message */}
                 {error && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
@@ -228,7 +262,6 @@ export default function Home() {
                   </motion.div>
                 )}
 
-                {/* Chat Input - Prominent */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -246,7 +279,6 @@ export default function Home() {
               </div>
             </motion.div>
           ) : (
-            /* Conversation State - Split Layout */
             <motion.div
               key="conversation"
               initial={{ opacity: 0 }}
@@ -254,7 +286,6 @@ export default function Home() {
               transition={{ duration: 0.5 }}
               className="min-h-[calc(100vh-3.5rem)] flex flex-col lg:flex-row"
             >
-              {/* Canvas Section */}
               <motion.div
                 initial={{ opacity: 0, x: -20, filter: "blur(10px)" }}
                 animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
@@ -273,7 +304,6 @@ export default function Home() {
                 </div>
               </motion.div>
 
-              {/* Chat Section - Fixed on right */}
               <motion.div
                 initial={{ opacity: 0, x: 20, filter: "blur(10px)" }}
                 animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
@@ -281,7 +311,6 @@ export default function Home() {
                 className="lg:w-2/5 lg:fixed lg:right-0 lg:top-14 lg:bottom-0 lg:border-l border-white/5 flex flex-col"
               >
                 <div className="flex-1 flex flex-col h-full glass-strong">
-                  {/* Chat Header */}
                   <div className="px-4 py-3 border-b border-white/5 flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                     <h3 className="font-medium text-white/80 text-sm">Conversation</h3>
@@ -290,19 +319,17 @@ export default function Home() {
                     )}
                   </div>
 
-                  {/* Error message */}
                   {error && (
                     <div className="mx-4 mt-2 px-3 py-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400 text-xs">
                       {error}
                     </div>
                   )}
 
-                  {/* Messages */}
                   <div className="flex-1 overflow-y-auto px-4 hide-scrollbar">
-                    <MessageList messages={formattedMessages} isLoading={isLoading} />
+                    <MessageList messages={messages} isLoading={isLoading} />
+                    <div ref={messagesEndRef} />
                   </div>
 
-                  {/* Input */}
                   <div className="p-4 border-t border-white/5">
                     <ConversationInput
                       onSubmit={handleMessageSubmit}
@@ -318,7 +345,6 @@ export default function Home() {
         </AnimatePresence>
       </main>
 
-      {/* Footer - Only on initial */}
       {!hasConversation && (
         <footer className="fixed bottom-0 left-0 right-0 z-40 glass border-t border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

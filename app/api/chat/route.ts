@@ -1,4 +1,4 @@
-import { streamText, tool } from "ai";
+import { streamText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import {
@@ -10,116 +10,93 @@ import {
   getCredentials,
   getAbout,
   getMetrics,
-  findRelevantCaseStudy,
   getContactInfo,
 } from "@/lib/knowledge";
 
 // ============================================================================
-// TOOL DEFINITIONS
+// TOOL DEFINITIONS (AI SDK v6 - uses inputSchema)
 // ============================================================================
 
 const tools = {
-  get_services: tool({
+  get_services: {
     description: "Get all available services Habib offers",
-    parameters: z.object({
-      query: z.string().optional().describe("Optional query parameter"),
+    inputSchema: z.object({
+      query: z.string().optional().describe("Optional query"),
     }),
     execute: async () => {
-      const result = getServices();
-      return result.data;
+      return getServices().data;
     },
-  }),
+  },
 
-  get_case_study: tool({
-    description: "Get details of a specific case study by ID (arqai, regtech, or aml-saas)",
-    parameters: z.object({
-      id: z.string().describe("The case study ID: arqai, regtech, or aml-saas"),
+  get_case_study: {
+    description: "Get details of a specific case study by ID",
+    inputSchema: z.object({
+      id: z.string().describe("Case study ID: arqai, regtech, or aml-saas"),
     }),
-    execute: async ({ id }) => {
-      const result = getCaseStudy(id);
-      return result.data;
+    execute: async ({ id }: { id: string }) => {
+      return getCaseStudy(id).data;
     },
-  }),
+  },
 
-  get_case_studies: tool({
-    description: "Get a summary of all available case studies",
-    parameters: z.object({
-      query: z.string().optional().describe("Optional query parameter"),
+  get_case_studies: {
+    description: "Get all available case studies",
+    inputSchema: z.object({
+      query: z.string().optional(),
     }),
     execute: async () => {
-      const result = getCaseStudies();
-      return result.data;
+      return getCaseStudies().data;
     },
-  }),
+  },
 
-  get_speaking_topics: tool({
-    description: "Get available speaking topics, optionally filtered by audience type",
-    parameters: z.object({
-      audience: z.string().optional().describe("Filter by audience type (e.g., 'CIOs', 'Technical', 'Business')"),
+  get_speaking_topics: {
+    description: "Get available speaking topics",
+    inputSchema: z.object({
+      audience: z.string().optional().describe("Filter by audience type"),
     }),
-    execute: async ({ audience }) => {
-      const result = getSpeakingTopics(audience);
-      return result.data;
+    execute: async ({ audience }: { audience?: string }) => {
+      return getSpeakingTopics(audience).data;
     },
-  }),
+  },
 
-  get_credentials: tool({
+  get_credentials: {
     description: "Get Habib's credentials and achievements",
-    parameters: z.object({
-      type: z.enum(["award", "patent", "achievement", "speaking", "certification"]).optional()
-        .describe("Filter by credential type"),
+    inputSchema: z.object({
+      type: z.enum(["award", "patent", "achievement", "speaking", "certification"]).optional(),
     }),
-    execute: async ({ type }) => {
-      const result = getCredentials(type);
-      return result.data;
+    execute: async ({ type }: { type?: "award" | "patent" | "achievement" | "speaking" | "certification" }) => {
+      return getCredentials(type).data;
     },
-  }),
+  },
 
-  get_about: tool({
-    description: "Get information about Habib including bio, expertise, and background",
-    parameters: z.object({
-      query: z.string().optional().describe("Optional query parameter"),
+  get_about: {
+    description: "Get information about Habib",
+    inputSchema: z.object({
+      query: z.string().optional(),
     }),
     execute: async () => {
-      const result = getAbout();
-      return result.data;
+      return getAbout().data;
     },
-  }),
+  },
 
-  get_metrics: tool({
-    description: "Get performance metrics and results, optionally filtered by case study",
-    parameters: z.object({
-      caseStudyId: z.string().optional().describe("Filter metrics by case study ID"),
+  get_metrics: {
+    description: "Get performance metrics",
+    inputSchema: z.object({
+      caseStudyId: z.string().optional(),
     }),
-    execute: async ({ caseStudyId }) => {
-      const result = getMetrics(caseStudyId);
-      return result.data;
+    execute: async ({ caseStudyId }: { caseStudyId?: string }) => {
+      return getMetrics(caseStudyId).data;
     },
-  }),
+  },
 
-  find_relevant_case_study: tool({
-    description: "Find the most relevant case study based on visitor context",
-    parameters: z.object({
-      industry: z.string().optional().describe("Visitor's industry"),
-      challenge: z.string().optional().describe("Visitor's challenge"),
-      region: z.string().optional().describe("Target region"),
-    }),
-    execute: async ({ industry, challenge, region }) => {
-      const result = findRelevantCaseStudy({ industry, challenge, region });
-      return result.data;
-    },
-  }),
-
-  get_contact_info: tool({
-    description: "Get contact information and booking links",
-    parameters: z.object({
-      query: z.string().optional().describe("Optional query parameter"),
+  get_contact_info: {
+    description: "Get contact information",
+    inputSchema: z.object({
+      query: z.string().optional(),
     }),
     execute: async () => {
-      const result = getContactInfo();
-      return result.data;
+      return getContactInfo().data;
     },
-  }),
+  },
 };
 
 // ============================================================================
@@ -131,7 +108,6 @@ export async function POST(request: Request) {
     // Check for API key
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.error("ANTHROPIC_API_KEY is not set");
       return new Response(
         JSON.stringify({ error: "API key not configured. Please add ANTHROPIC_API_KEY to .env.local" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
@@ -139,12 +115,10 @@ export async function POST(request: Request) {
     }
 
     // Create Anthropic provider
-    const anthropic = createAnthropic({
-      apiKey,
-    });
+    const anthropic = createAnthropic({ apiKey });
 
     const body = await request.json();
-    const { messages, sessionContext } = body;
+    const { messages } = body;
 
     if (!messages || !Array.isArray(messages)) {
       return new Response(JSON.stringify({ error: "Messages array is required" }), {
@@ -153,38 +127,27 @@ export async function POST(request: Request) {
       });
     }
 
-    // Build system prompt with knowledge context
+    // Build system prompt
     const systemPrompt = buildSystemPrompt();
 
-    // Add session context if available
-    const contextAddition = sessionContext
-      ? `\n\n## VISITOR CONTEXT\n${sessionContext}`
-      : "";
-
-    // Create streaming response - use claude-3-sonnet model
-    const result = await streamText({
+    // Create streaming response
+    const result = streamText({
       model: anthropic("claude-3-sonnet-20240229"),
-      system: systemPrompt + contextAddition + `
+      system: systemPrompt + `
 
-## IMPORTANT INSTRUCTIONS
-
-1. Use the tools to retrieve accurate information. Never make up facts.
+## INSTRUCTIONS
+1. Use tools to retrieve accurate information. Never make up facts.
 2. Keep responses concise and helpful.
-3. Guide high-engagement visitors toward booking a call.
-4. When mentioning metrics, always use the exact values from tools.`,
+3. Guide visitors toward booking a call when appropriate.`,
       messages,
       tools,
-      maxToolRoundtrips: 3,
     });
 
     // Return streaming response
-    return result.toDataStreamResponse();
+    return result.toTextStreamResponse();
   } catch (error) {
-    // Log detailed error
     console.error("Chat API error:", error);
-
-    // Return more helpful error message
-    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json" } }
@@ -192,18 +155,12 @@ export async function POST(request: Request) {
   }
 }
 
-// ============================================================================
-// SIMPLE ENDPOINT FOR NON-STREAMING REQUESTS
-// ============================================================================
-
 export async function GET() {
   const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
   return new Response(
     JSON.stringify({
       status: hasApiKey ? "ok" : "missing_api_key",
-      message: hasApiKey
-        ? "Chat API is running. Use POST with messages array."
-        : "ANTHROPIC_API_KEY is not set. Add it to .env.local",
+      message: hasApiKey ? "Chat API ready" : "Add ANTHROPIC_API_KEY to .env.local",
     }),
     { headers: { "Content-Type": "application/json" } }
   );
