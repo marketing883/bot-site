@@ -4,8 +4,19 @@ import { Conversation, Lead } from "./db";
 
 export type AgentMode = "qualifier" | "educator" | "scheduler" | "objection_handler";
 
-// Fields we need to collect for a lead
+// Progressive lead capture order: name → email → company → location → phone
+// Collect in this exact sequence for natural conversation flow
+const LEAD_CAPTURE_SEQUENCE: (keyof Lead)[] = [
+  "name",       // Start casual - "By the way, I didn't catch your name"
+  "email",      // Natural follow-up - "What's the best email for Habib to reach you?"
+  "company",    // Build context - "And which company are you with?"
+  "location",   // Geographic context - "Where are you based?"
+  "phone",      // Optional convenience - "Want to add a number for a quick call?"
+];
+
+// Required for lead to be "complete" (enough to save)
 const REQUIRED_FIELDS: (keyof Lead)[] = ["name", "email", "company"];
+// Additional fields to capture if conversation continues
 const OPTIONAL_FIELDS: (keyof Lead)[] = ["phone", "location", "challenge", "serviceArea"];
 
 // Determine which agent should handle the conversation
@@ -59,25 +70,31 @@ export function determineAgentMode(
   return conversation.agentMode;
 }
 
-// Get the next field to collect
+// Get the next field to collect following the progressive sequence
 export function getNextFieldToCollect(
   collectedInfo: Partial<Lead>
 ): keyof Lead | null {
-  // First check required fields
-  for (const field of REQUIRED_FIELDS) {
+  // Follow the progressive capture sequence: name → email → company → location → phone
+  for (const field of LEAD_CAPTURE_SEQUENCE) {
     if (!collectedInfo[field]) {
       return field;
     }
   }
-
-  // Then optional fields
-  for (const field of OPTIONAL_FIELDS) {
-    if (!collectedInfo[field]) {
-      return field;
-    }
-  }
-
   return null;
+}
+
+// Get how many fields have been collected (for context)
+export function getLeadProgress(collectedInfo: Partial<Lead>): {
+  collected: number;
+  total: number;
+  percentage: number;
+} {
+  const collected = LEAD_CAPTURE_SEQUENCE.filter(f => !!collectedInfo[f]).length;
+  return {
+    collected,
+    total: LEAD_CAPTURE_SEQUENCE.length,
+    percentage: Math.round((collected / LEAD_CAPTURE_SEQUENCE.length) * 100),
+  };
 }
 
 // Check if lead info is complete enough to save
@@ -144,68 +161,111 @@ export function extractInfoFromMessage(
   return extracted;
 }
 
+// Natural prompts for each field in the progressive capture sequence
+const FIELD_PROMPTS: Record<string, string[]> = {
+  name: [
+    "By the way, who am I chatting with?",
+    "Didn't catch your name!",
+    "What should I call you?",
+  ],
+  email: [
+    "What's a good email for Habib to reach you?",
+    "Drop your email - Habib can send over some relevant stuff.",
+    "Best email for follow-up?",
+  ],
+  company: [
+    "Which company are you with?",
+    "And the company?",
+    "Where do you work?",
+  ],
+  location: [
+    "Where are you based?",
+    "What part of the world are you in?",
+    "Your timezone? (So Habib knows when to call)",
+  ],
+  phone: [
+    "Got a number for a quick call?",
+    "Phone for scheduling?",
+    "Prefer a call? What's your number?",
+  ],
+};
+
 // Generate agent-specific system prompt additions
 export function getAgentPromptAdditions(
   mode: AgentMode,
   conversation: Conversation,
   nextField: keyof Lead | null
 ): string {
+  const progress = getLeadProgress(conversation.collectedInfo);
+  const collectedFields = LEAD_CAPTURE_SEQUENCE.filter(f => !!conversation.collectedInfo[f]);
+
   const baseInstructions = `
 CURRENT AGENT MODE: ${mode.toUpperCase()}
+LEAD PROGRESS: ${progress.collected}/${progress.total} fields (${progress.percentage}%)
 `;
+
+  const fieldPromptHint = nextField && FIELD_PROMPTS[nextField]
+    ? `\nNATURAL WAYS TO ASK FOR ${nextField.toUpperCase()}:\n- "${FIELD_PROMPTS[nextField][0]}"\n- "${FIELD_PROMPTS[nextField][1]}"\n- "${FIELD_PROMPTS[nextField][2]}"\n`
+    : "";
 
   switch (mode) {
     case "qualifier":
       return `${baseInstructions}
-YOUR TASK: Understand the visitor's needs and gently collect their information.
+YOUR TASK: Understand needs + progressively collect info. Keep it TIGHT.
 
-INFORMATION COLLECTED SO FAR:
-${JSON.stringify(conversation.collectedInfo, null, 2)}
+COLLECTED SO FAR: ${collectedFields.length > 0 ? collectedFields.join(", ") : "Nothing yet"}
+${nextField ? `NEXT TO COLLECT: ${nextField}` : "All info collected!"}
+${fieldPromptHint}
+PROGRESSIVE CAPTURE RULES:
+1. Give value FIRST (insight, pattern, relevant experience), then ask for ONE field
+2. Sequence: name → email → company → location → phone
+3. Never ask for two things at once
+4. If they provide info unprompted, acknowledge briefly and move on
+5. Space out collection - not every message needs to ask for something
+6. After 2-3 exchanges without new info, weave in the next field naturally
 
-${nextField ? `NEXT FIELD TO COLLECT: ${nextField}` : "All required info collected!"}
+EXAMPLE FLOW:
+User: "We're looking at CDP implementation"
+You: "Saw 4 CDP rollouts last quarter - common trap is underestimating data governance. What's driving the initiative?" [value first, no ask yet]
 
-COLLECTION APPROACH:
-- DON'T ask for info like a form. Weave it naturally into conversation.
-- After understanding their challenge, say something like "I'd love to have Habib follow up with you - what's the best email to reach you?"
-- For name: "By the way, I didn't catch your name!"
-- For company: "What company are you with?"
-- For location: "Where are you based?"
-- Only ask ONE piece of info at a time.
-- If they already shared info (like in an email signature format), acknowledge you have it.`;
+User: "Customer journey personalization mainly"
+You: "Makes sense. Journey orchestration is where CDPs actually pay off. By the way, who am I chatting with?" [now ask name]`;
 
     case "educator":
       return `${baseInstructions}
-YOUR TASK: Share relevant information about Habib's experience and capabilities.
+YOUR TASK: Share relevant experience. Be the Pattern Spotter.
 
-Keep responses focused and relevant. Use specific examples from the knowledge base.
-Don't overwhelm - share ONE case study or credential at a time.
-After sharing, ask if they'd like to learn more or discuss their specific situation.`;
+- ONE case study or credential per response
+- Connect it to their specific situation
+- Drop numbers: "130% growth", "3 patents", "50% conversion lift"
+- End with hook: "Want the breakdown?" or "Shall I get into the approach?"
+${nextField ? `\nOPPORTUNITY TO COLLECT: ${nextField}${fieldPromptHint}` : ""}`;
 
     case "scheduler":
       return `${baseInstructions}
-YOUR TASK: Help schedule a meeting with Habib.
+YOUR TASK: Get meeting booked. Efficient Operator mode.
 
-INFORMATION COLLECTED:
-${JSON.stringify(conversation.collectedInfo, null, 2)}
+COLLECTED: ${JSON.stringify(conversation.collectedInfo, null, 2)}
 
-${!conversation.collectedInfo.email ? "IMPORTANT: We still need their email before scheduling." : ""}
-${!conversation.collectedInfo.name ? "IMPORTANT: We still need their name before scheduling." : ""}
+${!conversation.collectedInfo.email ? "NEED EMAIL FIRST. Quick: 'What email should the invite go to?'" : ""}
+${!conversation.collectedInfo.name ? "NEED NAME FIRST. Quick: 'And your name for the invite?'" : ""}
 
-SCHEDULING APPROACH:
-1. If missing name/email, collect those first naturally.
-2. If Calendly works for them, provide the link.
-3. If they can't use Calendly, ask for 2-3 preferred times and say Habib will send a calendar invite.
-4. Confirm all details before ending.`;
+SCHEDULING MOVES:
+1. Calendly link: https://calendly.com/habib-mehmoodi
+2. If Calendly doesn't work: "Send 2-3 times that work, Habib will send the invite"
+3. Confirm: "Perfect. ${conversation.collectedInfo.name || "You'll"} get the invite at ${conversation.collectedInfo.email || "your email"}."`;
 
     case "objection_handler":
       return `${baseInstructions}
-YOUR TASK: Address concerns and provide reassurance.
+YOUR TASK: Handle concern. Sage Strategist mode - wisdom, not pressure.
 
 APPROACH:
-- Acknowledge their concern genuinely
-- Provide relevant social proof (awards, results, testimonials)
-- Don't be pushy - offer a low-commitment next step
-- Example: "Totally understand. Many clients started with just a quick discovery call to see if there's a fit. No commitment - would that work for you?"`;
+1. Acknowledge: "Makes sense." (not defensive)
+2. Reframe with insight: "Most clients felt the same way before seeing..."
+3. Low-commitment offer: "15-min discovery call. No pitch, just see if there's a fit."
+4. Social proof if helpful: GEC Award, 3 patents, 130% growth stats
+
+${nextField ? `IF THEY WARM UP, COLLECT: ${nextField}` : ""}`;
 
     default:
       return baseInstructions;

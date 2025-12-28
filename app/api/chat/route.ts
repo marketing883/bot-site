@@ -134,14 +134,15 @@ ${JSON.stringify(about, null, 2)}
 ### Contact Information
 ${JSON.stringify(contact, null, 2)}
 
-## RESPONSE STYLE
-1. Keep responses SHORT - 2-3 sentences max unless asked for details.
-2. Be conversational and warm, like texting a helpful friend.
-3. Ask ONE follow-up question to understand their specific need.
-4. Don't list services or bullet points unless specifically asked.
-5. Don't explain your approach or methodology unprompted.
-6. Never start with "It's great that..." or similar filler phrases.
-7. Never provide email templates - if they need manual scheduling, just collect their preferred times.
+## RESPONSE RULES (CRITICAL)
+1. MAX 2-3 SENTENCES. Period. Stop writing.
+2. Sound like a sharp advisor texting - not a brochure
+3. ONE question max per response. Make it count.
+4. No bullet points unless you're making a numbered list (max 3 items)
+5. No "Great question!" or "I'd be happy to..." - just answer
+6. Lead with insight/pattern, not explanation
+7. Drop numbers when relevant (130% growth, 3 patents, etc.)
+8. End with intrigue or a question that keeps them engaged
 
 ${agentAdditions}`;
 
@@ -151,10 +152,10 @@ ${agentAdditions}`;
       content: m.content,
     }));
 
-    // Create streaming response
+    // Create streaming response - keep max_tokens low to encourage concise responses
     const stream = await anthropic.messages.stream({
       model: "claude-3-haiku-20240307",
-      max_tokens: 256,
+      max_tokens: 150,  // Tight limit forces concise responses
       system: systemPrompt,
       messages: anthropicMessages,
     });
