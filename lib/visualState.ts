@@ -64,14 +64,36 @@ const SUBSTANTIVE_TOPICS = [
   "positioning", "brand", "pricing", "revenue", "customers", "users",
   "roadmap", "launch", "mvp", "prototype", "technology", "software",
   "integration", "api", "cloud", "security", "privacy", "gdpr",
-  "analytics", "metrics", "kpi", "performance", "optimization"
+  "analytics", "metrics", "kpi", "performance", "optimization",
+  // Enterprise systems & migration
+  "sap", "s4hana", "s/4hana", "erp", "oracle", "salesforce", "dynamics",
+  "migration", "modernization", "modernize", "legacy", "upgrade",
+  "crm", "hcm", "scm", "supply chain", "hr system", "finance system"
 ];
 
 // Extract the main topic from a message
 export function extractTopic(message: string): string | null {
   const lowerMessage = message.toLowerCase();
 
-  // Check for substantive topics
+  // Priority topics - check these first (specific enterprise systems)
+  const priorityTopics = [
+    "s4hana", "s/4hana", "sap", "erp", "oracle", "salesforce", "dynamics",
+    "modernize", "modernization", "migration", "upgrade", "legacy",
+    "fintech", "healthtech", "insurtech", "edtech",
+    "compliance", "regulatory", "digital transformation",
+    "automation", "integration"
+  ];
+
+  for (const topic of priorityTopics) {
+    if (lowerMessage.includes(topic)) {
+      // Normalize topic names
+      if (topic === "s/4hana") return "s4hana";
+      if (topic === "modernization") return "modernize";
+      return topic;
+    }
+  }
+
+  // Check for other substantive topics
   for (const topic of SUBSTANTIVE_TOPICS) {
     if (lowerMessage.includes(topic)) {
       return topic;
@@ -103,6 +125,17 @@ export function extractTopic(message: string): string | null {
   return null;
 }
 
+// Topics that should trigger dynamic canvas (not our 4 main services)
+const DYNAMIC_TRIGGER_TOPICS = [
+  "sap", "s4hana", "s/4hana", "erp", "oracle", "salesforce", "dynamics",
+  "migration", "modernization", "modernize", "legacy", "upgrade",
+  "crm", "hcm", "scm", "supply chain", "hr system", "finance system",
+  "product", "startup", "fintech", "healthtech", "edtech", "insurtech",
+  "compliance", "regulatory", "digital transformation",
+  "automation", "efficiency", "integration", "cloud migration",
+  "enterprise software", "system implementation"
+];
+
 // Detect canvas mode from conversation content
 export function detectCanvasMode(
   userMessage: string,
@@ -111,7 +144,7 @@ export function detectCanvasMode(
   const lowerMessage = userMessage.toLowerCase();
   const fullContext = [...conversationHistory, userMessage].join(" ").toLowerCase();
 
-  // Speaking/Events
+  // Speaking/Events - very specific
   if (
     lowerMessage.includes("speak") ||
     lowerMessage.includes("keynote") ||
@@ -122,21 +155,19 @@ export function detectCanvasMode(
     return "speaking";
   }
 
-  // Scheduling
+  // Scheduling - very specific
   if (
     lowerMessage.includes("book") ||
     lowerMessage.includes("schedule") ||
     lowerMessage.includes("calendar") ||
-    lowerMessage.includes("meet") ||
-    lowerMessage.includes("call")
+    (lowerMessage.includes("meet") && lowerMessage.includes("call"))
   ) {
     return "scheduling";
   }
 
-  // Case study deep dive
+  // Case study deep dive - explicit mentions
   if (
     lowerMessage.includes("case study") ||
-    lowerMessage.includes("example") ||
     lowerMessage.includes("tell me more about") ||
     lowerMessage.includes("arqai") ||
     lowerMessage.includes("regtech")
@@ -144,54 +175,55 @@ export function detectCanvasMode(
     return "case-study";
   }
 
-  // AI Strategy
+  // Check for dynamic topics FIRST - specific enterprise/tech topics
+  // These should show tailored content, not default AI Strategy
+  for (const topic of DYNAMIC_TRIGGER_TOPICS) {
+    if (lowerMessage.includes(topic)) {
+      return "dynamic";
+    }
+  }
+
+  // AI Strategy - only for EXPLICIT AI discussions
   if (
-    lowerMessage.includes("ai") ||
+    lowerMessage.includes("ai strategy") ||
+    lowerMessage.includes("ai platform") ||
     lowerMessage.includes("artificial intelligence") ||
-    lowerMessage.includes("platform") ||
-    lowerMessage.includes("governance") ||
-    lowerMessage.includes("data") ||
-    lowerMessage.includes("architecture")
+    lowerMessage.includes("ai governance") ||
+    (lowerMessage.includes("ai") && (
+      lowerMessage.includes("help") ||
+      lowerMessage.includes("need") ||
+      lowerMessage.includes("looking for")
+    ))
   ) {
     return "ai-strategy";
   }
 
-  // GTM
+  // GTM - explicit go-to-market
   if (
     lowerMessage.includes("gtm") ||
     lowerMessage.includes("go-to-market") ||
     lowerMessage.includes("go to market") ||
-    lowerMessage.includes("marketing") ||
-    lowerMessage.includes("sales") ||
-    lowerMessage.includes("conversion") ||
-    lowerMessage.includes("pipeline") ||
-    lowerMessage.includes("demand")
+    (lowerMessage.includes("marketing") && lowerMessage.includes("strategy")) ||
+    lowerMessage.includes("sales strategy") ||
+    lowerMessage.includes("pipeline")
   ) {
     return "gtm";
   }
 
-  // Market Expansion
+  // Market Expansion - explicit expansion
   if (
     lowerMessage.includes("expand") ||
-    lowerMessage.includes("region") ||
     lowerMessage.includes("international") ||
-    lowerMessage.includes("global") ||
     lowerMessage.includes("mena") ||
-    lowerMessage.includes("europe") ||
-    lowerMessage.includes("apac")
+    lowerMessage.includes("apac") ||
+    (lowerMessage.includes("global") && lowerMessage.includes("market"))
   ) {
     return "expansion";
   }
 
-  // Check conversation context for sustained topics
-  if (fullContext.includes("ai") && fullContext.includes("strategy")) {
-    return "ai-strategy";
-  }
-
-  // Check for dynamic/unlisted topics that deserve custom content
+  // Check for any substantive topic that deserves dynamic content
   const topic = extractTopic(userMessage);
-  if (topic && conversationHistory.length >= 1) {
-    // Only show dynamic canvas after some conversation context
+  if (topic) {
     return "dynamic";
   }
 
@@ -315,6 +347,41 @@ export function generateDynamicContent(
     services: string[];
     caseStudy?: string;
   }> = {
+    "sap": {
+      headline: "Enterprise Systems & SAP Modernization",
+      experience: ["Enterprise architecture and system integration", "Digital transformation for large organizations", "AI-readiness assessment for legacy systems"],
+      approach: ["Assess current architecture and pain points", "Design migration strategy with AI optimization", "Plan phased implementation with quick wins"],
+      services: ["AI Platform Strategy", "Go-to-Market Strategy"],
+      caseStudy: "arqai"
+    },
+    "s4hana": {
+      headline: "S/4HANA Migration Strategy",
+      experience: ["Enterprise architecture and system integration", "Platform modernization strategies", "Change management for digital transformation"],
+      approach: ["Evaluate current SAP landscape", "Design AI-optimized target architecture", "Create phased migration roadmap"],
+      services: ["AI Platform Strategy", "Go-to-Market Strategy"],
+      caseStudy: "arqai"
+    },
+    "erp": {
+      headline: "ERP Strategy & Modernization",
+      experience: ["Enterprise platform architecture", "System integration and data strategy", "AI-enabled process optimization"],
+      approach: ["Map current processes and pain points", "Design future-state architecture", "Build business case and roadmap"],
+      services: ["AI Platform Strategy", "Go-to-Market Strategy"],
+      caseStudy: "arqai"
+    },
+    "modernize": {
+      headline: "System Modernization Strategy",
+      experience: ["Enterprise digital transformation", "Legacy system migration", "AI-readiness and optimization"],
+      approach: ["Assess current state and technical debt", "Define modernization priorities", "Execute transformation with measurable milestones"],
+      services: ["AI Platform Strategy", "Go-to-Market Strategy"],
+      caseStudy: "arqai"
+    },
+    "migration": {
+      headline: "Migration Strategy & Execution",
+      experience: ["Enterprise platform migrations", "Risk mitigation and change management", "Cross-functional program leadership"],
+      approach: ["Assess migration scope and risks", "Design migration architecture", "Execute with minimal disruption"],
+      services: ["AI Platform Strategy", "Market Expansion"],
+      caseStudy: "arqai"
+    },
     "product": {
       headline: "Product Strategy & Development",
       experience: ["Built and scaled enterprise SaaS products", "Product-market fit optimization", "Technical product leadership"],
@@ -355,6 +422,20 @@ export function generateDynamicContent(
       experience: ["Enterprise AI implementation", "Platform modernization", "Change management"],
       approach: ["Assess current state", "Design target architecture", "Execute transformation roadmap"],
       services: ["AI Platform Strategy", "Go-to-Market Strategy"],
+      caseStudy: "arqai"
+    },
+    "automation": {
+      headline: "Process Automation Strategy",
+      experience: ["AI-driven automation solutions", "Enterprise workflow optimization", "ROI-focused implementation"],
+      approach: ["Identify automation opportunities", "Prioritize by business impact", "Implement with governance"],
+      services: ["AI Platform Strategy", "Go-to-Market Strategy"],
+      caseStudy: "arqai"
+    },
+    "integration": {
+      headline: "System Integration Strategy",
+      experience: ["Enterprise API and data integration", "Cross-platform architecture", "AI-enabled data pipelines"],
+      approach: ["Map integration requirements", "Design scalable architecture", "Implement with monitoring"],
+      services: ["AI Platform Strategy"],
       caseStudy: "arqai"
     }
   };
