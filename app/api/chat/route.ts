@@ -14,13 +14,8 @@ import {
   getContactInfo,
 } from "@/lib/knowledge";
 
-// Create Anthropic provider
-const anthropic = createAnthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 // ============================================================================
-// TOOL DEFINITIONS (AI SDK v3 format)
+// TOOL DEFINITIONS
 // ============================================================================
 
 const tools = {
@@ -133,6 +128,21 @@ const tools = {
 
 export async function POST(request: Request) {
   try {
+    // Check for API key
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.error("ANTHROPIC_API_KEY is not set");
+      return new Response(
+        JSON.stringify({ error: "API key not configured. Please add ANTHROPIC_API_KEY to .env.local" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    // Create Anthropic provider
+    const anthropic = createAnthropic({
+      apiKey,
+    });
+
     const body = await request.json();
     const { messages, sessionContext } = body;
 
@@ -151,9 +161,9 @@ export async function POST(request: Request) {
       ? `\n\n## VISITOR CONTEXT\n${sessionContext}`
       : "";
 
-    // Create streaming response
+    // Create streaming response - use claude-3-5-sonnet model
     const result = await streamText({
-      model: anthropic("claude-sonnet-4-20250514"),
+      model: anthropic("claude-3-5-sonnet-20241022"),
       system: systemPrompt + contextAddition + `
 
 ## IMPORTANT INSTRUCTIONS
@@ -170,9 +180,13 @@ export async function POST(request: Request) {
     // Return streaming response
     return result.toDataStreamResponse();
   } catch (error) {
+    // Log detailed error
     console.error("Chat API error:", error);
+
+    // Return more helpful error message
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -183,10 +197,13 @@ export async function POST(request: Request) {
 // ============================================================================
 
 export async function GET() {
+  const hasApiKey = !!process.env.ANTHROPIC_API_KEY;
   return new Response(
     JSON.stringify({
-      status: "ok",
-      message: "Chat API is running. Use POST with messages array.",
+      status: hasApiKey ? "ok" : "missing_api_key",
+      message: hasApiKey
+        ? "Chat API is running. Use POST with messages array."
+        : "ANTHROPIC_API_KEY is not set. Add it to .env.local",
     }),
     { headers: { "Content-Type": "application/json" } }
   );
