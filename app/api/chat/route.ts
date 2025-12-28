@@ -161,9 +161,9 @@ export async function POST(request: Request) {
       ? `\n\n## VISITOR CONTEXT\n${sessionContext}`
       : "";
 
-    // Create streaming response - use claude-3-5-sonnet model
+    // Create streaming response - use claude-3-sonnet model
     const result = await streamText({
-      model: anthropic("claude-3-5-sonnet-20241022"),
+      model: anthropic("claude-3-sonnet-20240229"),
       system: systemPrompt + contextAddition + `
 
 ## IMPORTANT INSTRUCTIONS
