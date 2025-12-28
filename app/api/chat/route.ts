@@ -77,8 +77,8 @@ ${JSON.stringify(contact, null, 2)}
 3. Guide visitors toward booking a call when appropriate.
 4. Be conversational but professional.`;
 
-    // Create streaming response (no tools for now - simpler approach)
-    const result = streamText({
+    // Create streaming response
+    const result = await streamText({
       model: anthropic("claude-3-sonnet-20240229"),
       system: enhancedPrompt,
       messages,
