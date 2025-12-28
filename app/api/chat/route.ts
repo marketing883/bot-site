@@ -1,122 +1,30 @@
 import { streamText } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
-import { z } from "zod";
 import {
   buildSystemPrompt,
   getServices,
-  getCaseStudy,
   getCaseStudies,
   getSpeakingTopics,
   getCredentials,
   getAbout,
-  getMetrics,
   getContactInfo,
 } from "@/lib/knowledge";
-
-// ============================================================================
-// TOOL DEFINITIONS (AI SDK v6 - uses inputSchema)
-// ============================================================================
-
-const tools = {
-  get_services: {
-    description: "Get all available services Habib offers",
-    inputSchema: z.object({
-      query: z.string().optional().describe("Optional query"),
-    }),
-    execute: async () => {
-      return getServices().data;
-    },
-  },
-
-  get_case_study: {
-    description: "Get details of a specific case study by ID",
-    inputSchema: z.object({
-      id: z.string().describe("Case study ID: arqai, regtech, or aml-saas"),
-    }),
-    execute: async ({ id }: { id: string }) => {
-      return getCaseStudy(id).data;
-    },
-  },
-
-  get_case_studies: {
-    description: "Get all available case studies",
-    inputSchema: z.object({
-      query: z.string().optional(),
-    }),
-    execute: async () => {
-      return getCaseStudies().data;
-    },
-  },
-
-  get_speaking_topics: {
-    description: "Get available speaking topics",
-    inputSchema: z.object({
-      audience: z.string().optional().describe("Filter by audience type"),
-    }),
-    execute: async ({ audience }: { audience?: string }) => {
-      return getSpeakingTopics(audience).data;
-    },
-  },
-
-  get_credentials: {
-    description: "Get Habib's credentials and achievements",
-    inputSchema: z.object({
-      type: z.enum(["award", "patent", "achievement", "speaking", "certification"]).optional(),
-    }),
-    execute: async ({ type }: { type?: "award" | "patent" | "achievement" | "speaking" | "certification" }) => {
-      return getCredentials(type).data;
-    },
-  },
-
-  get_about: {
-    description: "Get information about Habib",
-    inputSchema: z.object({
-      query: z.string().optional(),
-    }),
-    execute: async () => {
-      return getAbout().data;
-    },
-  },
-
-  get_metrics: {
-    description: "Get performance metrics",
-    inputSchema: z.object({
-      caseStudyId: z.string().optional(),
-    }),
-    execute: async ({ caseStudyId }: { caseStudyId?: string }) => {
-      return getMetrics(caseStudyId).data;
-    },
-  },
-
-  get_contact_info: {
-    description: "Get contact information",
-    inputSchema: z.object({
-      query: z.string().optional(),
-    }),
-    execute: async () => {
-      return getContactInfo().data;
-    },
-  },
-};
 
 // ============================================================================
 // REQUEST HANDLER
 // ============================================================================
 
 export async function POST(request: Request) {
+  // Check for API key first
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    return new Response(
+      JSON.stringify({ error: "API key not configured. Please add ANTHROPIC_API_KEY to .env.local" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   try {
-    // Check for API key
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "API key not configured. Please add ANTHROPIC_API_KEY to .env.local" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    // Create Anthropic provider
-    const anthropic = createAnthropic({ apiKey });
-
     const body = await request.json();
     const { messages } = body;
 
@@ -127,37 +35,76 @@ export async function POST(request: Request) {
       });
     }
 
-    // Build system prompt
-    const systemPrompt = buildSystemPrompt();
+    // Create Anthropic provider
+    const anthropic = createAnthropic({ apiKey });
 
-    // Create streaming response
-    const result = streamText({
-      model: anthropic("claude-3-sonnet-20240229"),
-      system: systemPrompt + `
+    // Build system prompt with all knowledge embedded
+    const basePrompt = buildSystemPrompt();
+
+    // Embed key knowledge directly in the system prompt for now
+    const services = getServices().data;
+    const caseStudies = getCaseStudies().data;
+    const speakingTopics = getSpeakingTopics().data;
+    const credentials = getCredentials().data;
+    const about = getAbout().data;
+    const contact = getContactInfo().data;
+
+    const enhancedPrompt = `${basePrompt}
+
+## AVAILABLE KNOWLEDGE
+
+### Services Offered
+${JSON.stringify(services, null, 2)}
+
+### Case Studies
+${JSON.stringify(caseStudies, null, 2)}
+
+### Speaking Topics
+${JSON.stringify(speakingTopics, null, 2)}
+
+### Credentials & Achievements
+${JSON.stringify(credentials, null, 2)}
+
+### About Habib
+${JSON.stringify(about, null, 2)}
+
+### Contact Information
+${JSON.stringify(contact, null, 2)}
 
 ## INSTRUCTIONS
-1. Use tools to retrieve accurate information. Never make up facts.
+1. Use the knowledge above to answer questions accurately.
 2. Keep responses concise and helpful.
-3. Guide visitors toward booking a call when appropriate.`,
+3. Guide visitors toward booking a call when appropriate.
+4. Be conversational but professional.`;
+
+    // Create streaming response (no tools for now - simpler approach)
+    const result = streamText({
+      model: anthropic("claude-3-sonnet-20240229"),
+      system: enhancedPrompt,
       messages,
-      tools,
     });
 
-    // Create a plain text stream from the result
+    // Create a plain text stream with error handling
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
-        for await (const chunk of result.textStream) {
-          controller.enqueue(encoder.encode(chunk));
+        try {
+          for await (const chunk of result.textStream) {
+            controller.enqueue(encoder.encode(chunk));
+          }
+          controller.close();
+        } catch (err) {
+          console.error("Stream error:", err);
+          const errorMsg = err instanceof Error ? err.message : "Stream error";
+          controller.enqueue(encoder.encode(`\n\n[Error: ${errorMsg}]`));
+          controller.close();
         }
-        controller.close();
       },
     });
 
     return new Response(stream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
-        "Transfer-Encoding": "chunked",
       },
     });
   } catch (error) {
