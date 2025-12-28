@@ -79,7 +79,7 @@ ${JSON.stringify(contact, null, 2)}
 
     // Create streaming response
     const result = await streamText({
-      model: anthropic("claude-3-sonnet-20240229"),
+      model: anthropic("claude-3-5-sonnet-20241022"),
       system: enhancedPrompt,
       messages,
     });
