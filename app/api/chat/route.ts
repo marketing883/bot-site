@@ -1,5 +1,4 @@
-import { streamText } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
+import Anthropic from "@anthropic-ai/sdk";
 import {
   buildSystemPrompt,
   getServices,
@@ -35,13 +34,15 @@ export async function POST(request: Request) {
       });
     }
 
-    // Create Anthropic provider
-    const anthropic = createAnthropic({ apiKey });
+    // Create Anthropic client
+    const anthropic = new Anthropic({
+      apiKey,
+    });
 
     // Build system prompt with all knowledge embedded
     const basePrompt = buildSystemPrompt();
 
-    // Embed key knowledge directly in the system prompt for now
+    // Embed key knowledge directly in the system prompt
     const services = getServices().data;
     const caseStudies = getCaseStudies().data;
     const speakingTopics = getSpeakingTopics().data;
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
     const about = getAbout().data;
     const contact = getContactInfo().data;
 
-    const enhancedPrompt = `${basePrompt}
+    const systemPrompt = `${basePrompt}
 
 ## AVAILABLE KNOWLEDGE
 
@@ -77,20 +78,30 @@ ${JSON.stringify(contact, null, 2)}
 3. Guide visitors toward booking a call when appropriate.
 4. Be conversational but professional.`;
 
-    // Create streaming response
-    const result = await streamText({
-      model: anthropic("claude-3-5-sonnet-20241022"),
-      system: enhancedPrompt,
-      messages,
+    // Convert messages to Anthropic format
+    const anthropicMessages = messages.map((m: { role: string; content: string }) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }));
+
+    // Create streaming response using official SDK
+    // Using claude-3-haiku for faster responses and wider availability
+    const stream = await anthropic.messages.stream({
+      model: "claude-3-haiku-20240307",
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: anthropicMessages,
     });
 
-    // Create a plain text stream with error handling
-    const stream = new ReadableStream({
+    // Create a ReadableStream from the Anthropic stream
+    const readableStream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
         try {
-          for await (const chunk of result.textStream) {
-            controller.enqueue(encoder.encode(chunk));
+          for await (const event of stream) {
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
           }
           controller.close();
         } catch (err) {
@@ -102,7 +113,7 @@ ${JSON.stringify(contact, null, 2)}
       },
     });
 
-    return new Response(stream, {
+    return new Response(readableStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
       },
