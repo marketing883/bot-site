@@ -73,10 +73,21 @@ ${JSON.stringify(about, null, 2)}
 ${JSON.stringify(contact, null, 2)}
 
 ## INSTRUCTIONS
-1. Use the knowledge above to answer questions accurately.
-2. Keep responses concise and helpful.
-3. Guide visitors toward booking a call when appropriate.
-4. Be conversational but professional.`;
+1. Keep responses SHORT - 2-3 sentences max unless asked for details.
+2. Be conversational and warm, like texting a helpful friend.
+3. Ask ONE follow-up question to understand their specific need.
+4. Don't list services or bullet points unless specifically asked.
+5. Don't explain your approach or methodology unprompted.
+6. Only mention booking a call after understanding their challenge.
+7. Never start with "It's great that..." or similar filler phrases.
+
+EXAMPLE GOOD RESPONSE:
+User: "Help us improve our GTM"
+Assistant: "Happy to help! What's the biggest GTM challenge you're facing right now - is it positioning, lead gen, or something else?"
+
+EXAMPLE BAD RESPONSE (too long):
+User: "Help us improve our GTM"
+Assistant: "It's great that you're looking to optimize... [long explanation of services and methodology]"`;
 
     // Convert messages to Anthropic format
     const anthropicMessages = messages.map((m: { role: string; content: string }) => ({
@@ -88,7 +99,7 @@ ${JSON.stringify(contact, null, 2)}
     // Using claude-3-haiku for faster responses and wider availability
     const stream = await anthropic.messages.stream({
       model: "claude-3-haiku-20240307",
-      max_tokens: 1024,
+      max_tokens: 256, // Keep responses short
       system: systemPrompt,
       messages: anthropicMessages,
     });
