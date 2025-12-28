@@ -28,9 +28,9 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
         {messages.map((message) => (
           <motion.div
             key={message.id}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: 10, filter: "blur(5px)" }}
+            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            exit={{ opacity: 0, y: -10, filter: "blur(5px)" }}
             transition={{ duration: 0.3 }}
             className={cn(
               "flex gap-3",
@@ -39,35 +39,35 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           >
             <div
               className={cn(
-                "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+                "flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center",
                 message.role === "user"
-                  ? "bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400"
-                  : "bg-accent-100 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400"
+                  ? "bg-gradient-to-br from-cyan-500/20 to-blue-500/20 text-cyan-400 border border-cyan-500/20"
+                  : "bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/20"
               )}
             >
               {message.role === "user" ? (
-                <User className="w-4 h-4" />
+                <User className="w-3.5 h-3.5" />
               ) : (
-                <Bot className="w-4 h-4" />
+                <Bot className="w-3.5 h-3.5" />
               )}
             </div>
             <div
               className={cn(
-                "flex flex-col max-w-[80%]",
+                "flex flex-col max-w-[85%]",
                 message.role === "user" ? "items-end" : "items-start"
               )}
             >
               <div
                 className={cn(
-                  "px-4 py-3 rounded-2xl",
+                  "px-4 py-2.5 rounded-2xl text-sm",
                   message.role === "user"
-                    ? "bg-primary-500 text-white rounded-br-md"
-                    : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-md"
+                    ? "bg-gradient-to-r from-cyan-500/20 to-blue-500/20 text-white border border-cyan-500/20 rounded-br-md"
+                    : "glass-card text-white/90 rounded-bl-md"
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
               </div>
-              <span className="text-xs text-slate-400 mt-1">
+              <span className="text-[10px] text-white/30 mt-1 px-1">
                 {formatDate(new Date(message.timestamp))}
               </span>
             </div>
@@ -81,10 +81,10 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
           animate={{ opacity: 1, y: 0 }}
           className="flex gap-3"
         >
-          <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-accent-100 dark:bg-accent-900/30 text-accent-600 dark:text-accent-400">
-            <Bot className="w-4 h-4" />
+          <div className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-purple-400 border border-purple-500/20">
+            <Bot className="w-3.5 h-3.5" />
           </div>
-          <div className="px-4 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-bl-md">
+          <div className="px-4 py-3 rounded-2xl glass-card rounded-bl-md">
             <div className="typing-indicator flex gap-1">
               <span />
               <span />

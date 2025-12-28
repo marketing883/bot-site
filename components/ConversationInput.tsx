@@ -15,7 +15,7 @@ interface ConversationInputProps {
 export function ConversationInput({
   onSubmit,
   isLoading = false,
-  placeholder = "Tell me what challenge you're facing, and I'll show you if I can help.",
+  placeholder = "Tell me what challenge you're facing...",
   quickPrompts = [],
   compact = false,
 }: ConversationInputProps) {
@@ -58,10 +58,8 @@ export function ConversationInput({
       <form onSubmit={handleSubmit} className="relative">
         <div
           className={cn(
-            "relative flex items-end rounded-2xl border border-slate-200 dark:border-slate-700",
-            "bg-white dark:bg-slate-800 shadow-lg",
-            "focus-within:ring-2 focus-within:ring-primary-500/50 focus-within:border-primary-500",
-            "transition-all duration-200"
+            "relative flex items-end rounded-xl glass-input",
+            "transition-all duration-300"
           )}
         >
           <textarea
@@ -73,9 +71,9 @@ export function ConversationInput({
             disabled={isLoading}
             rows={1}
             className={cn(
-              "flex-1 resize-none bg-transparent",
+              "flex-1 resize-none bg-transparent text-white",
               compact ? "px-4 py-3 text-sm" : "px-5 py-4 text-base",
-              "placeholder:text-slate-400 dark:placeholder:text-slate-500",
+              "placeholder:text-white/30",
               "focus:outline-none",
               "disabled:opacity-50 disabled:cursor-not-allowed"
             )}
@@ -84,12 +82,11 @@ export function ConversationInput({
             type="submit"
             disabled={!input.trim() || isLoading}
             className={cn(
-              compact ? "m-2 p-2" : "m-3 p-3",
-              "rounded-xl bg-gradient-to-r from-primary-500 to-accent-500",
-              "text-white shadow-md",
-              "hover:shadow-lg hover:scale-105",
-              "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100",
-              "transition-all duration-200"
+              compact ? "m-2 p-2" : "m-2 p-3",
+              "rounded-lg btn-glow",
+              "text-white",
+              "disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:transform-none",
+              "transition-all duration-300"
             )}
           >
             {isLoading ? (
@@ -104,21 +101,19 @@ export function ConversationInput({
       </form>
 
       {quickPrompts.length > 0 && !compact && (
-        <div className="flex flex-wrap gap-2 justify-center">
+        <div className="flex flex-wrap gap-2 justify-center pt-2">
           {quickPrompts.map((prompt, index) => (
             <button
               key={index}
               onClick={() => handleQuickPrompt(prompt)}
               disabled={isLoading}
               className={cn(
-                "px-4 py-2 rounded-full text-sm",
-                "bg-white dark:bg-slate-800",
-                "border border-slate-200 dark:border-slate-700",
-                "text-slate-600 dark:text-slate-300",
-                "hover:border-primary-300 hover:text-primary-600",
-                "dark:hover:border-primary-600 dark:hover:text-primary-400",
+                "px-4 py-2 rounded-full text-xs",
+                "glass-card",
+                "text-white/60",
+                "hover:text-cyan-400 hover:border-cyan-500/30",
                 "disabled:opacity-50 disabled:cursor-not-allowed",
-                "transition-all duration-200"
+                "transition-all duration-300 card-hover"
               )}
             >
               {prompt}
