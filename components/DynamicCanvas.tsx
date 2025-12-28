@@ -10,15 +10,26 @@ import {
   MarketExpansionCanvas,
   CaseStudyCanvas,
 } from "./canvases";
+import type { VisualState, VisualMood } from "@/lib/visualState";
 
 interface DynamicCanvasProps {
   canvas: CanvasType;
   context: ExtractedContext;
+  visualState?: VisualState;
   onServiceClick?: (serviceId: string) => void;
   onCaseStudyClick?: (id: string) => void;
   onBookCall?: () => void;
   onBack?: () => void;
 }
+
+// Mood-based glow colors
+const moodGlowColors: Record<VisualMood, string> = {
+  neutral: "from-slate-500/5 via-slate-500/5 to-slate-500/5",
+  engaged: "from-teal-500/10 via-cyan-500/10 to-blue-500/10",
+  focused: "from-blue-500/10 via-indigo-500/10 to-blue-500/10",
+  excited: "from-cyan-500/15 via-purple-500/15 to-pink-500/15",
+  thoughtful: "from-indigo-500/10 via-purple-500/10 to-indigo-500/10",
+};
 
 // Sci-fi morphing transition variants
 const morphVariants = {
@@ -86,11 +97,15 @@ const glitchVariants = {
 export function DynamicCanvas({
   canvas,
   context,
+  visualState,
   onServiceClick,
   onCaseStudyClick,
   onBookCall,
   onBack,
 }: DynamicCanvasProps) {
+  const mood = visualState?.mood || "neutral";
+  const glowColor = moodGlowColors[mood];
+
   const renderCanvas = () => {
     switch (canvas) {
       case "initial":
@@ -146,17 +161,32 @@ export function DynamicCanvas({
 
   return (
     <div className="relative">
-      {/* Transition glow effect */}
+      {/* Mood-based transition glow effect */}
       <AnimatePresence>
         <motion.div
-          key={`glow-${canvas}`}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-          className="absolute -inset-4 bg-gradient-to-r from-cyan-500/5 via-purple-500/5 to-blue-500/5 rounded-3xl blur-xl pointer-events-none"
+          key={`glow-${canvas}-${mood}`}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 1.05 }}
+          transition={{ duration: 0.5 }}
+          className={`absolute -inset-4 bg-gradient-to-r ${glowColor} rounded-3xl blur-xl pointer-events-none`}
         />
       </AnimatePresence>
+
+      {/* Progress indicator based on conversation stage */}
+      {visualState?.progressStage && visualState.progressStage !== "exploring" && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute -top-8 left-0 right-0 flex justify-center"
+        >
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <div className={`w-2 h-2 rounded-full ${visualState.progressStage === "qualifying" ? "bg-cyan-400" : "bg-slate-600"}`} />
+            <div className={`w-2 h-2 rounded-full ${visualState.progressStage === "educating" ? "bg-cyan-400" : "bg-slate-600"}`} />
+            <div className={`w-2 h-2 rounded-full ${visualState.progressStage === "closing" ? "bg-cyan-400" : "bg-slate-600"}`} />
+          </div>
+        </motion.div>
+      )}
 
       <AnimatePresence mode="wait">
         <motion.div

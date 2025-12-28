@@ -23,6 +23,7 @@ import {
   extractInfoFromMessage,
   getAgentPromptAdditions,
 } from "@/lib/agents";
+import { buildVisualState, type VisualState } from "@/lib/visualState";
 
 // ============================================================================
 // REQUEST HANDLER
@@ -190,10 +191,20 @@ ${agentAdditions}`;
       },
     });
 
+    // Build visual state for UI morphing
+    const conversationHistory = updatedConversation.messages.map(m => m.content);
+    const visualState = buildVisualState(
+      latestUserMessage?.content || "",
+      conversationHistory,
+      updatedConversation.agentMode,
+      updatedConversation.collectedInfo
+    );
+
     return new Response(readableStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
         "X-Session-Id": sessionId,
+        "X-Visual-State": JSON.stringify(visualState),
       },
     });
   } catch (error) {

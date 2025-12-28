@@ -8,11 +8,26 @@ import { MessageList } from "@/components/MessageList";
 import { DynamicCanvas } from "@/components/DynamicCanvas";
 import { CanvasType, ExtractedContext, Message } from "@/lib/types";
 import { quickPrompts, proofPoints } from "@/lib/data";
+import type { VisualState, CanvasMode } from "@/lib/visualState";
+import { getMoodStyles, initialVisualState } from "@/lib/visualState";
 
 // Generate a unique session ID
 function generateSessionId(): string {
   return `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
+
+// Map visual canvas mode to UI canvas type
+const canvasModeToType: Record<CanvasMode, CanvasType> = {
+  "initial": "initial",
+  "ai-strategy": "ai-strategy",
+  "gtm": "gtm",
+  "expansion": "market-expansion",
+  "speaking": "speaking",
+  "case-study": "case-study",
+  "scheduling": "initial",
+  "assessment": "initial",
+  "estimator": "initial",
+};
 
 export default function Home() {
   const [currentCanvas, setCurrentCanvas] = useState<CanvasType>("initial");
@@ -20,6 +35,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [visualState, setVisualState] = useState<VisualState>(initialVisualState);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Session ID - persists across the conversation
@@ -73,6 +89,28 @@ export default function Home() {
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.error || `Error: ${response.status}`);
+        }
+
+        // Read visual state from headers and update UI
+        const visualStateHeader = response.headers.get("X-Visual-State");
+        if (visualStateHeader) {
+          try {
+            const newVisualState = JSON.parse(visualStateHeader) as VisualState;
+            setVisualState(newVisualState);
+
+            // Update canvas based on visual state
+            const newCanvas = canvasModeToType[newVisualState.canvas] || "initial";
+            if (newCanvas !== currentCanvas) {
+              setCurrentCanvas(newCanvas);
+            }
+
+            // Update context with highlighted case study
+            if (newVisualState.highlightedCaseStudy) {
+              setContext(prev => ({ ...prev, caseStudyId: newVisualState.highlightedCaseStudy }));
+            }
+          } catch (e) {
+            console.error("Failed to parse visual state:", e);
+          }
         }
 
         // Handle streaming response
@@ -169,11 +207,38 @@ export default function Home() {
     setError(null);
   }, []);
 
+  // Get mood-based styles
+  const moodStyles = getMoodStyles(visualState.mood);
+
   return (
     <div className="min-h-screen bg-gradient-animated grid-overlay relative overflow-hidden">
-      {/* Ambient orbs */}
-      <div className="orb-glow w-[500px] h-[500px] bg-cyan-500 -top-48 -left-48 fixed" />
-      <div className="orb-glow w-[600px] h-[600px] bg-purple-500 -bottom-64 -right-64 fixed" />
+      {/* Mood-responsive ambient orbs */}
+      <motion.div
+        animate={{
+          scale: visualState.mood === "excited" ? 1.2 : visualState.mood === "engaged" ? 1.1 : 1,
+          opacity: visualState.mood === "neutral" ? 0.3 : 0.5,
+        }}
+        transition={{ duration: 1, ease: "easeInOut" }}
+        className={`orb-glow w-[500px] h-[500px] -top-48 -left-48 fixed ${
+          visualState.mood === "excited" ? "bg-cyan-400" :
+          visualState.mood === "engaged" ? "bg-teal-500" :
+          visualState.mood === "focused" ? "bg-blue-500" :
+          visualState.mood === "thoughtful" ? "bg-indigo-500" : "bg-cyan-500"
+        }`}
+      />
+      <motion.div
+        animate={{
+          scale: visualState.mood === "excited" ? 1.3 : 1,
+          opacity: visualState.mood === "neutral" ? 0.3 : 0.5,
+        }}
+        transition={{ duration: 1.2, ease: "easeInOut" }}
+        className={`orb-glow w-[600px] h-[600px] -bottom-64 -right-64 fixed ${
+          visualState.mood === "excited" ? "bg-pink-500" :
+          visualState.mood === "engaged" ? "bg-cyan-500" :
+          visualState.mood === "focused" ? "bg-indigo-500" :
+          visualState.mood === "thoughtful" ? "bg-purple-500" : "bg-purple-500"
+        }`}
+      />
       <div className="orb-glow w-[300px] h-[300px] bg-blue-500 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 fixed opacity-20" />
 
       {/* Header */}
@@ -315,11 +380,30 @@ export default function Home() {
                   <DynamicCanvas
                     canvas={currentCanvas}
                     context={context}
+                    visualState={visualState}
                     onServiceClick={handleServiceClick}
                     onCaseStudyClick={handleCaseStudyClick}
                     onBookCall={handleBookCall}
                     onBack={handleBack}
                   />
+
+                  {/* Context-aware metrics display */}
+                  {visualState.showMetrics && visualState.showMetrics.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-6 flex flex-wrap gap-3 justify-center"
+                    >
+                      {visualState.showMetrics.map((metric, i) => (
+                        <div
+                          key={i}
+                          className="glass-card px-4 py-2 rounded-lg text-sm text-cyan-400 border border-cyan-500/20"
+                        >
+                          {metric}
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
                 </div>
               </motion.div>
 
