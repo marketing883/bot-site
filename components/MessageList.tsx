@@ -3,6 +3,7 @@
 import { useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { User, Bot } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { Message } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 
@@ -65,7 +66,20 @@ export function MessageList({ messages, isLoading }: MessageListProps) {
                     : "glass-card text-white/90 rounded-bl-md"
                 )}
               >
-  <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+{message.role === "assistant" ? (
+                  <div className="prose prose-invert prose-sm max-w-none
+                    prose-p:my-1 prose-p:leading-relaxed
+                    prose-strong:text-cyan-300 prose-strong:font-semibold
+                    prose-em:text-purple-300/90
+                    prose-ul:my-1 prose-ul:pl-4 prose-li:my-0.5
+                    prose-ol:my-1 prose-ol:pl-4
+                    prose-a:text-cyan-400 prose-a:no-underline hover:prose-a:underline
+                  ">
+                    <ReactMarkdown>{message.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
+                )}
               </div>
               <span className="text-[10px] text-white/30 mt-1 px-1">
                 {formatDate(new Date(message.timestamp))}

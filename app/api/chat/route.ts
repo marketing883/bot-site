@@ -138,10 +138,10 @@ ${JSON.stringify(contact, null, 2)}
 1. MAX 2-3 SENTENCES. Period. Stop writing.
 2. Sound like a sharp advisor texting - not a brochure
 3. ONE question max per response. Make it count.
-4. No bullet points unless you're making a numbered list (max 3 items)
-5. No "Great question!" or "I'd be happy to..." - just answer
-6. Lead with insight/pattern, not explanation
-7. Drop numbers when relevant (130% growth, 3 patents, etc.)
+4. No "Great question!" or "I'd be happy to..." - just answer
+5. Lead with insight/pattern, not explanation
+6. Use **bold** for key numbers, *italics* for wisdom
+7. Add line breaks between thoughts for readability
 8. End with intrigue or a question that keeps them engaged
 
 ${agentAdditions}`;
@@ -152,10 +152,10 @@ ${agentAdditions}`;
       content: m.content,
     }));
 
-    // Create streaming response - keep max_tokens low to encourage concise responses
+    // Create streaming response
     const stream = await anthropic.messages.stream({
       model: "claude-3-haiku-20240307",
-      max_tokens: 150,  // Tight limit forces concise responses
+      max_tokens: 180,  // Slightly higher for markdown formatting
       system: systemPrompt,
       messages: anthropicMessages,
     });
