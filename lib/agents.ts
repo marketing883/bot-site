@@ -28,13 +28,24 @@ export function determineAgentMode(
   const collectedInfo = conversation.collectedInfo;
 
   // Check if we should switch to scheduler mode
-  if (
-    lowerMessage.includes("book") ||
-    lowerMessage.includes("schedule") ||
-    lowerMessage.includes("call") ||
-    lowerMessage.includes("meeting") ||
-    lowerMessage.includes("calendly")
-  ) {
+  // STRICT: Only when user EXPLICITLY wants to book, not casual mentions
+  const schedulingPhrases = [
+    "book a call",
+    "book a meeting",
+    "schedule a call",
+    "schedule a meeting",
+    "set up a call",
+    "set up a meeting",
+    "talk to habib",
+    "speak with habib",
+    "meet with habib",
+    "calendly",
+    "let's schedule",
+    "can we meet",
+    "available for a call",
+    "get on a call",
+  ];
+  if (schedulingPhrases.some(phrase => lowerMessage.includes(phrase))) {
     return "scheduler";
   }
 
@@ -216,25 +227,35 @@ LEAD PROGRESS: ${progress.collected}/${progress.total} fields (${progress.percen
   switch (mode) {
     case "qualifier":
       return `${baseInstructions}
-YOUR TASK: Understand needs + progressively collect info. Value first, then ask.
+YOUR TASK: ENGAGE first, then progressively collect info. Be genuinely curious.
+
+**NEVER mention booking, Calendly, or scheduling. Focus on understanding their problem.**
 
 COLLECTED: ${collectedFields.length > 0 ? collectedFields.join(", ") : "Nothing yet"}
 ${nextField ? `NEXT FIELD: ${nextField}` : "All info collected!"}
 ${fieldPromptHint}
-CAPTURE RULES:
-1. Value FIRST (insight/pattern), then ONE field ask
-2. Sequence: name → email → company → location → phone
-3. Never ask two things at once
-4. After 2-3 exchanges without new info, weave in the next field
+ENGAGEMENT RULES:
+1. First 2-3 exchanges: Focus ONLY on understanding their challenge. No info collection.
+2. Show genuine curiosity - ask follow-up questions about their specific situation
+3. Share relevant patterns/insights that prove you understand their space
+4. After rapport is built (2-3 exchanges), naturally weave in info collection
 
-CONTEXT-AWARE TRANSITIONS:
-- After AI discussion: "This sounds like ArqAI territory - **3 patents** came from similar challenges. Quick - who am I talking with?"
-- After GTM discussion: "Classic GTM wall. Saw **50% lift** fixing this exact pattern. What's your email? I'll flag you for Habib."
-- After Market discussion: "**130% growth** in similar expansion. Where are you based - helps me think about regional playbook."`;
+CAPTURE SEQUENCE (after engagement):
+- name → email → company → location → phone
+- Never ask two things at once
+- Make asks feel natural, not form-filling
+
+EXAMPLE FLOW:
+User: "We're looking at tech modernization"
+Exchange 1: "Interesting timing - seeing a lot of movement here. What's driving this for you - competitive pressure or internal efficiency?" [NO ask yet]
+Exchange 2: "Makes sense. The efficiency angle usually has clearer ROI. What does your current stack look like?" [still engaging]
+Exchange 3: "That's exactly the setup I saw at 3 manufacturing clients. By the way - who am I talking with?" [NOW ask name]`;
 
     case "educator":
       return `${baseInstructions}
-YOUR TASK: Share relevant experience with precision.
+YOUR TASK: Share relevant experience with precision. Keep them engaged.
+
+**Don't push to booking - let them drive that conversation.**
 
 TEACHING RULES:
 1. ONE case study or credential per response - don't list
