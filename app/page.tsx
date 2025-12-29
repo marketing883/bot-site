@@ -7,7 +7,15 @@ import { ConversationInput } from "@/components/ConversationInput";
 import { MessageList } from "@/components/MessageList";
 import { DynamicCanvas } from "@/components/DynamicCanvas";
 import { CanvasType, ExtractedContext, Message } from "@/lib/types";
-import { quickPrompts, proofPoints } from "@/lib/data";
+import { proofPoints } from "@/lib/data";
+
+// Quick prompts with their service IDs for direct canvas switching
+const quickPromptsWithServices = [
+  { text: "I need help with AI strategy", serviceId: "ai-strategy" },
+  { text: "Looking for a speaker on AI", serviceId: "speaking" },
+  { text: "We want to expand to new markets", serviceId: "market-expansion" },
+  { text: "Help us improve our GTM", serviceId: "gtm" },
+];
 import type { VisualState, CanvasMode } from "@/lib/visualState";
 import { getMoodStyles, initialVisualState } from "@/lib/visualState";
 
@@ -208,6 +216,20 @@ export default function Home() {
     setError(null);
   }, []);
 
+  // Handle quick prompt clicks - these trigger service canvases directly
+  const handleQuickPromptClick = useCallback(
+    (prompt: string, serviceId?: string) => {
+      if (serviceId) {
+        // Quick prompts with service IDs should switch canvas directly
+        handleServiceClick(serviceId);
+      } else {
+        // Fallback to regular message submit
+        handleMessageSubmit(prompt);
+      }
+    },
+    [handleServiceClick, handleMessageSubmit]
+  );
+
   // Get mood-based styles
   const moodStyles = getMoodStyles(visualState.mood);
 
@@ -356,8 +378,9 @@ export default function Home() {
                   <div className="glass-chat rounded-2xl p-1">
                     <ConversationInput
                       onSubmit={handleMessageSubmit}
+                      onQuickPromptClick={handleQuickPromptClick}
                       isLoading={isLoading}
-                      quickPrompts={quickPrompts}
+                      quickPrompts={quickPromptsWithServices}
                     />
                   </div>
                 </motion.div>

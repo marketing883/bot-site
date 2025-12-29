@@ -6,14 +6,16 @@ import { cn } from "@/lib/utils";
 
 interface ConversationInputProps {
   onSubmit: (message: string) => void;
+  onQuickPromptClick?: (prompt: string, serviceId?: string) => void;
   isLoading?: boolean;
   placeholder?: string;
-  quickPrompts?: string[];
+  quickPrompts?: Array<{ text: string; serviceId?: string }>;
   compact?: boolean;
 }
 
 export function ConversationInput({
   onSubmit,
+  onQuickPromptClick,
   isLoading = false,
   placeholder = "Tell me what challenge you're facing...",
   quickPrompts = [],
@@ -40,9 +42,13 @@ export function ConversationInput({
     }
   };
 
-  const handleQuickPrompt = (prompt: string) => {
+  const handleQuickPrompt = (prompt: { text: string; serviceId?: string }) => {
     if (!isLoading) {
-      onSubmit(prompt);
+      if (onQuickPromptClick) {
+        onQuickPromptClick(prompt.text, prompt.serviceId);
+      } else {
+        onSubmit(prompt.text);
+      }
     }
   };
 
@@ -116,7 +122,7 @@ export function ConversationInput({
                 "transition-all duration-300 card-hover"
               )}
             >
-              {prompt}
+              {prompt.text}
             </button>
           ))}
         </div>
