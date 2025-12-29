@@ -227,27 +227,21 @@ LEAD PROGRESS: ${progress.collected}/${progress.total} fields (${progress.percen
   switch (mode) {
     case "qualifier":
       return `${baseInstructions}
-YOUR TASK: Understand their situation while naturally gathering info. Be genuinely curious.
+YOUR TASK: Understand their situation while naturally gathering info.
 
 COLLECTED: ${collectedFields.length > 0 ? collectedFields.join(", ") : "Nothing yet"}
 ${nextField ? `NEXT FIELD: ${nextField}` : "All info collected!"}
+
+**CRITICAL FLOW:**
+${!conversation.collectedInfo.name ? `1. THIS IS YOUR FIRST/EARLY RESPONSE - You MUST end with "Who am I chatting with?" or similar` : ""}
+${conversation.collectedInfo.name && !conversation.collectedInfo.email ? `2. You have their name (${conversation.collectedInfo.name}) - Now ask for EMAIL: "What's a good email to keep this going?"` : ""}
+${conversation.collectedInfo.name && conversation.collectedInfo.email ? `3. You have name and email - Continue understanding their needs, offer to connect with Habib when ready` : ""}
 ${fieldPromptHint}
-FLOW:
-1. First response: Acknowledge their situation + insight + ask for NAME
-2. After name: Use it, dig deeper into challenge, ask for EMAIL
-3. Continue understanding their needs, weave in company/location naturally
-4. When conversation has momentum and you understand their need, offer to connect with Habib
-
-NATURAL ASKS:
-- Name: "Who am I chatting with?" / "Quick - who's this?"
-- Email: "What's a good email to keep this going?" / "Best email for follow-up?"
-- Company: "And which company?" / "Where are you based?"
-
-EXAMPLE:
+EXAMPLE FIRST RESPONSE (must end with name ask):
 User: "We need help with our GTM strategy"
-You: "GTM challenges - always comes down to positioning or pipeline. Seeing both a lot lately.
+You: "GTM challenges - usually positioning or pipeline. Seeing both a lot lately.
 
-Which feels more like your pain point? And who am I chatting with?"`;
+Which feels closer to your situation? Who am I chatting with?"`;
 
     case "educator":
       return `${baseInstructions}

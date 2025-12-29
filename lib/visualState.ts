@@ -1451,6 +1451,7 @@ const TOPIC_ALIASES: Record<string, string> = {
 // HIGH PRIORITY: Intent keywords that should override descriptive words
 // These indicate what the user WANTS, not what they ARE
 const INTENT_KEYWORDS: Record<string, string> = {
+  // Technology/Digital Transformation
   "implement": "digital transformation",
   "implementing": "digital transformation",
   "implementation": "digital transformation",
@@ -1460,24 +1461,65 @@ const INTENT_KEYWORDS: Record<string, string> = {
   "technology": "digital transformation",
   "tech in our": "digital transformation",
   "transform": "digital transformation",
-  "automate": "automation",
-  "automation": "automation",
   "optimize": "digital transformation",
   "modernize": "digital transformation",
   "upgrade": "digital transformation",
+  "digitize": "digital transformation",
+  "digitalize": "digital transformation",
+
+  // Automation
+  "automate": "automation",
+  "automation": "automation",
   "improve our processes": "automation",
   "streamline": "automation",
+  "workflow": "automation",
+  "efficiency": "automation",
+
+  // Customer Experience / Client-Facing
+  "client facing": "cdp",
+  "client-facing": "cdp",
+  "customer facing": "cdp",
+  "customer-facing": "cdp",
+  "customer experience": "cdp",
+  "client experience": "cdp",
+  "self-service": "cdp",
+  "self service": "cdp",
+  "portal": "cdp",
+  "customer portal": "cdp",
+  "client portal": "cdp",
+  "user experience": "cdp",
+  "ux": "cdp",
+  "enhancement": "digital transformation",
+  "improve customer": "cdp",
+  "improve client": "cdp",
+
+  // AI/ML
   "ai strategy": "ai",
   "ai platform": "ai",
   "ai governance": "ai",
   "machine learning": "machine learning",
+  "predictive": "machine learning",
+  "intelligent": "ai",
+
+  // Data & Analytics
   "data strategy": "analytics",
+  "analytics": "analytics",
+  "insights": "analytics",
+  "dashboard": "analytics",
+  "reporting": "analytics",
+
+  // Sales & GTM
   "gtm strategy": "sales",
   "go-to-market": "sales",
   "sales strategy": "sales",
+  "pipeline": "sales",
+  "conversion": "sales",
+
+  // Market Expansion
   "market expansion": "international",
   "expand to": "international",
   "enter new market": "international",
+  "new region": "international",
 };
 
 // Extract the main topic from a message
