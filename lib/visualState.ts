@@ -1417,9 +1417,10 @@ const TOPIC_ALIASES: Record<string, string> = {
   "industry 4.0": "manufacturing",
   "smart factory": "manufacturing",
   "iot": "manufacturing",
-  "global": "international",
-  "expansion": "international",
-  "new markets": "international",
+  "food processing": "manufacturing",
+  "food manufacturing": "manufacturing",
+  // Note: "global" removed - too ambiguous (describes company vs intent)
+  // Use INTENT_KEYWORDS for "expand to", "market expansion" instead
   "middle east": "mena",
   "uae": "mena",
   "saudi": "mena",
@@ -1429,8 +1430,7 @@ const TOPIC_ALIASES: Record<string, string> = {
   "germany": "europe",
   "france": "europe",
   "eu": "europe",
-  "apac": "international",
-  "asia": "international",
+  // Note: removed standalone "apac", "asia" - use with expansion intent
   "marketing": "martech",
   "demand generation": "martech",
   "demand gen": "martech",
@@ -1448,25 +1448,76 @@ const TOPIC_ALIASES: Record<string, string> = {
   "cx": "cdp",
 };
 
+// HIGH PRIORITY: Intent keywords that should override descriptive words
+// These indicate what the user WANTS, not what they ARE
+const INTENT_KEYWORDS: Record<string, string> = {
+  "implement": "digital transformation",
+  "implementing": "digital transformation",
+  "implementation": "digital transformation",
+  "next-gen": "ai",
+  "next gen": "ai",
+  "nextgen": "ai",
+  "technology": "digital transformation",
+  "tech in our": "digital transformation",
+  "transform": "digital transformation",
+  "automate": "automation",
+  "automation": "automation",
+  "optimize": "digital transformation",
+  "modernize": "digital transformation",
+  "upgrade": "digital transformation",
+  "improve our processes": "automation",
+  "streamline": "automation",
+  "ai strategy": "ai",
+  "ai platform": "ai",
+  "ai governance": "ai",
+  "machine learning": "machine learning",
+  "data strategy": "analytics",
+  "gtm strategy": "sales",
+  "go-to-market": "sales",
+  "sales strategy": "sales",
+  "market expansion": "international",
+  "expand to": "international",
+  "enter new market": "international",
+};
+
 // Extract the main topic from a message
 export function extractTopic(message: string): string | null {
   const lowerMessage = message.toLowerCase();
 
-  // Check aliases first (more specific)
+  // PRIORITY 1: Check intent keywords first (what user WANTS to do)
+  for (const [intent, topic] of Object.entries(INTENT_KEYWORDS)) {
+    if (lowerMessage.includes(intent)) {
+      return topic;
+    }
+  }
+
+  // PRIORITY 2: Check specific product/tool aliases
   for (const [alias, topic] of Object.entries(TOPIC_ALIASES)) {
+    // Skip generic geographic words that describe the company, not the need
+    if (["global", "international", "worldwide"].includes(alias)) {
+      continue;
+    }
     if (lowerMessage.includes(alias)) {
       return topic;
     }
   }
 
-  // Check main topic mappings
+  // PRIORITY 3: Check main topic mappings
   for (const topic of Object.keys(TOPIC_MAPPINGS)) {
     if (lowerMessage.includes(topic)) {
       return topic;
     }
   }
 
-  // Check for substantial message with business intent
+  // PRIORITY 4: Geographic keywords only if they appear with expansion intent
+  if (
+    (lowerMessage.includes("expand") || lowerMessage.includes("enter") || lowerMessage.includes("launch in")) &&
+    (lowerMessage.includes("global") || lowerMessage.includes("international") || lowerMessage.includes("market"))
+  ) {
+    return "international";
+  }
+
+  // PRIORITY 5: Check for substantial message with business intent
   if (message.length > 50 && (
     lowerMessage.includes("we") ||
     lowerMessage.includes("our") ||
