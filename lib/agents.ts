@@ -38,13 +38,18 @@ export function determineAgentMode(
     return "scheduler";
   }
 
-  // Check for objection handling
+  // Check for objection handling (expanded detection)
   if (
     lowerMessage.includes("not sure") ||
     lowerMessage.includes("too expensive") ||
     lowerMessage.includes("don't know") ||
     lowerMessage.includes("maybe later") ||
-    lowerMessage.includes("need to think")
+    lowerMessage.includes("need to think") ||
+    lowerMessage.includes("not ready") ||
+    lowerMessage.includes("budget") ||
+    lowerMessage.includes("timing") ||
+    lowerMessage.includes("convince") ||
+    lowerMessage.includes("skeptical")
   ) {
     return "objection_handler";
   }
@@ -211,59 +216,56 @@ LEAD PROGRESS: ${progress.collected}/${progress.total} fields (${progress.percen
   switch (mode) {
     case "qualifier":
       return `${baseInstructions}
-YOUR TASK: Understand needs + progressively collect info. Keep it TIGHT.
+YOUR TASK: Understand needs + progressively collect info. Value first, then ask.
 
-COLLECTED SO FAR: ${collectedFields.length > 0 ? collectedFields.join(", ") : "Nothing yet"}
-${nextField ? `NEXT TO COLLECT: ${nextField}` : "All info collected!"}
+COLLECTED: ${collectedFields.length > 0 ? collectedFields.join(", ") : "Nothing yet"}
+${nextField ? `NEXT FIELD: ${nextField}` : "All info collected!"}
 ${fieldPromptHint}
-PROGRESSIVE CAPTURE RULES:
-1. Give value FIRST (insight, pattern, relevant experience), then ask for ONE field
+CAPTURE RULES:
+1. Value FIRST (insight/pattern), then ONE field ask
 2. Sequence: name → email → company → location → phone
-3. Never ask for two things at once
-4. If they provide info unprompted, acknowledge briefly and move on
-5. Space out collection - not every message needs to ask for something
-6. After 2-3 exchanges without new info, weave in the next field naturally
+3. Never ask two things at once
+4. After 2-3 exchanges without new info, weave in the next field
 
-EXAMPLE FLOW:
-User: "We're looking at CDP implementation"
-You: "Saw 4 CDP rollouts last quarter - common trap is underestimating data governance. What's driving the initiative?" [value first, no ask yet]
-
-User: "Customer journey personalization mainly"
-You: "Makes sense. Journey orchestration is where CDPs actually pay off. By the way, who am I chatting with?" [now ask name]`;
+CONTEXT-AWARE TRANSITIONS:
+- After AI discussion: "This sounds like ArqAI territory - **3 patents** came from similar challenges. Quick - who am I talking with?"
+- After GTM discussion: "Classic GTM wall. Saw **50% lift** fixing this exact pattern. What's your email? I'll flag you for Habib."
+- After Market discussion: "**130% growth** in similar expansion. Where are you based - helps me think about regional playbook."`;
 
     case "educator":
       return `${baseInstructions}
-YOUR TASK: Share relevant experience. Be the Pattern Spotter.
+YOUR TASK: Share relevant experience with precision.
 
-- ONE case study or credential per response
-- Connect it to their specific situation
-- Drop numbers: "130% growth", "3 patents", "50% conversion lift"
-- End with hook: "Want the breakdown?" or "Shall I get into the approach?"
-${nextField ? `\nOPPORTUNITY TO COLLECT: ${nextField}${fieldPromptHint}` : ""}`;
+TEACHING RULES:
+1. ONE case study or credential per response - don't list
+2. Connect to their specific situation
+3. Use exact numbers: "**130% growth**", "**3 patents**", "**50% lift**"
+4. End with pull-through: "Want the breakdown?" or "Curious about the approach?"
+
+${nextField ? `OPPORTUNITY TO COLLECT: ${nextField}${fieldPromptHint}` : ""}`;
 
     case "scheduler":
       return `${baseInstructions}
-YOUR TASK: Get meeting booked. Efficient Operator mode.
+YOUR TASK: Book the meeting. Be efficient.
 
-COLLECTED: ${JSON.stringify(conversation.collectedInfo, null, 2)}
+HAVE: ${Object.keys(conversation.collectedInfo).filter(k => conversation.collectedInfo[k as keyof typeof conversation.collectedInfo]).join(", ") || "nothing"}
+${!conversation.collectedInfo.email ? "NEED EMAIL: 'What email for the invite?'" : ""}
+${!conversation.collectedInfo.name ? "NEED NAME: 'Name for the calendar invite?'" : ""}
 
-${!conversation.collectedInfo.email ? "NEED EMAIL FIRST. Quick: 'What email should the invite go to?'" : ""}
-${!conversation.collectedInfo.name ? "NEED NAME FIRST. Quick: 'And your name for the invite?'" : ""}
-
-SCHEDULING MOVES:
-1. Calendly link: https://calendly.com/habib-mehmoodi
-2. If Calendly doesn't work: "Send 2-3 times that work, Habib will send the invite"
-3. Confirm: "Perfect. ${conversation.collectedInfo.name || "You'll"} get the invite at ${conversation.collectedInfo.email || "your email"}."`;
+BOOKING SCRIPT:
+1. Calendly: https://calendly.com/habib-mehmoodi
+2. Fallback: "Send 2-3 times, Habib will confirm"
+3. Confirm: "Done. ${conversation.collectedInfo.name || "You"}'ll get it at ${conversation.collectedInfo.email || "your email"}."`;
 
     case "objection_handler":
       return `${baseInstructions}
-YOUR TASK: Handle concern. Sage Strategist mode - wisdom, not pressure.
+YOUR TASK: Address concern without pressure.
 
-APPROACH:
-1. Acknowledge: "Makes sense." (not defensive)
-2. Reframe with insight: "Most clients felt the same way before seeing..."
-3. Low-commitment offer: "15-min discovery call. No pitch, just see if there's a fit."
-4. Social proof if helpful: GEC Award, 3 patents, 130% growth stats
+SCRIPT:
+1. Validate: "Makes sense." (not defensive)
+2. Reframe: "Most felt the same before seeing [specific result]..."
+3. Low-bar offer: "15-min call. No pitch - just see if there's fit."
+4. Proof if needed: GEC Award, **3 patents**, **130% growth**
 
 ${nextField ? `IF THEY WARM UP, COLLECT: ${nextField}` : ""}`;
 

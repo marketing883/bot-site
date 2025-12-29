@@ -23,7 +23,75 @@ import {
   extractInfoFromMessage,
   getAgentPromptAdditions,
 } from "@/lib/agents";
-import { buildVisualState, type VisualState } from "@/lib/visualState";
+import { buildVisualState, type VisualState, type DynamicContent } from "@/lib/visualState";
+
+// ============================================================================
+// CANVAS CONTEXT BUILDER
+// ============================================================================
+
+function buildConversationSummary(messages: Array<{ role: string; content: string }>): string {
+  if (messages.length <= 2) return "";
+
+  // Summarize conversation trajectory for context
+  const userMessages = messages.filter(m => m.role === "user").map(m => m.content);
+  if (userMessages.length === 0) return "";
+
+  let summary = "\n## CONVERSATION SO FAR\n";
+
+  // Detect primary topic from early messages
+  const allText = userMessages.join(" ").toLowerCase();
+  if (allText.includes("ai") || allText.includes("governance") || allText.includes("platform")) {
+    summary += "Topic: AI/Governance focus\n";
+  } else if (allText.includes("gtm") || allText.includes("sales") || allText.includes("marketing")) {
+    summary += "Topic: GTM/Sales focus\n";
+  } else if (allText.includes("expand") || allText.includes("market") || allText.includes("region")) {
+    summary += "Topic: Market expansion focus\n";
+  }
+
+  summary += `Exchanges: ${Math.ceil(messages.length / 2)}\n`;
+  summary += "Don't repeat yourself. Build on previous responses.\n";
+
+  return summary;
+}
+
+function buildCanvasContext(visualState: VisualState): string {
+  const { canvas, dynamicContent, highlightedService, highlightedCaseStudy } = visualState;
+
+  let context = `\n## CURRENT CANVAS STATE\n`;
+  context += `The user is currently viewing: `;
+
+  if (canvas === "dynamic" && dynamicContent) {
+    context += `**${dynamicContent.headline}** canvas\n`;
+    context += `Topic: ${dynamicContent.topic}\n`;
+    context += `They can see:\n`;
+    context += `- Hero stats: ${dynamicContent.heroStats.map(s => `${s.value} ${s.label}`).join(", ")}\n`;
+    context += `- Your relevant experience in this area\n`;
+    context += `- Your approach steps for this type of engagement\n`;
+    if (dynamicContent.suggestedCaseStudy) {
+      context += `- Case study teaser: "${dynamicContent.caseStudyTeaser}"\n`;
+    }
+    context += `\nYour response should reference what they're seeing. Don't repeat the headline - acknowledge their interest and add insight.\n`;
+  } else if (canvas === "initial") {
+    context += `the welcome/initial state - they're just exploring\n`;
+    context += `Be welcoming but get to business quickly. Ask about their challenge.\n`;
+  } else if (canvas === "scheduling") {
+    context += `the scheduling canvas with the Calendly booking option\n`;
+    context += `They're ready to book. Keep it brief and confirmatory.\n`;
+  } else if (canvas === "speaking") {
+    context += `the speaking/events canvas\n`;
+    context += `Focus on speaking topics and event experience.\n`;
+  } else {
+    context += `a service canvas (${canvas})\n`;
+    if (highlightedService) {
+      context += `Highlighted service: ${highlightedService}\n`;
+    }
+    if (highlightedCaseStudy) {
+      context += `Highlighted case study: ${highlightedCaseStudy}\n`;
+    }
+  }
+
+  return context;
+}
 
 // ============================================================================
 // REQUEST HANDLER
@@ -112,8 +180,23 @@ export async function POST(request: Request) {
       nextField
     );
 
-    const systemPrompt = `${basePrompt}
+    // Build visual state early so we can include canvas context
+    const conversationHistory = updatedConversation.messages.map(m => m.content);
+    const visualState = buildVisualState(
+      latestUserMessage?.content || "",
+      conversationHistory,
+      updatedConversation.agentMode,
+      updatedConversation.collectedInfo
+    );
 
+    // Build canvas context for the system prompt
+    const canvasContext = buildCanvasContext(visualState);
+
+    // Build conversation summary for multi-turn context
+    const conversationSummary = buildConversationSummary(messages);
+
+    const systemPrompt = `${basePrompt}
+${canvasContext}${conversationSummary}
 ## AVAILABLE KNOWLEDGE
 
 ### Services Offered
@@ -134,15 +217,14 @@ ${JSON.stringify(about, null, 2)}
 ### Contact Information
 ${JSON.stringify(contact, null, 2)}
 
-## RESPONSE RULES (CRITICAL)
-1. MAX 2-3 SENTENCES. Period. Stop writing.
-2. Sound like a sharp advisor texting - not a brochure
-3. ONE question max per response. Make it count.
-4. No "Great question!" or "I'd be happy to..." - just answer
-5. Lead with insight/pattern, not explanation
-6. Use **bold** for key numbers, *italics* for wisdom
-7. Add line breaks between thoughts for readability
-8. End with intrigue or a question that keeps them engaged
+## RESPONSE RULES (NON-NEGOTIABLE)
+1. LENGTH: 2-3 sentences + optional question. Then STOP.
+2. OPENING: Never "Great question!" / "I'd be happy to..." / "That's interesting..."
+3. STRUCTURE: Insight first → Evidence → Hook or question
+4. FORMATTING: **Bold** for numbers only. *Italics* for asides. Line breaks between thoughts.
+5. QUESTIONS: Maximum ONE per response. Specific, not generic.
+6. FACTS: Use ONLY your knowledge base. Never invent numbers or companies.
+7. UNCERTAINTY: Say "Good one for Habib directly" - don't guess.
 
 ${agentAdditions}`;
 
@@ -155,7 +237,7 @@ ${agentAdditions}`;
     // Create streaming response
     const stream = await anthropic.messages.stream({
       model: "claude-3-haiku-20240307",
-      max_tokens: 180,  // Slightly higher for markdown formatting
+      max_tokens: 250,  // Allow for markdown formatting and richer responses
       system: systemPrompt,
       messages: anthropicMessages,
     });
@@ -192,15 +274,7 @@ ${agentAdditions}`;
       },
     });
 
-    // Build visual state for UI morphing
-    const conversationHistory = updatedConversation.messages.map(m => m.content);
-    const visualState = buildVisualState(
-      latestUserMessage?.content || "",
-      conversationHistory,
-      updatedConversation.agentMode,
-      updatedConversation.collectedInfo
-    );
-
+    // Visual state was already built earlier for canvas context injection
     return new Response(readableStream, {
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
